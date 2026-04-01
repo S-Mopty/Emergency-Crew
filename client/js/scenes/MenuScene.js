@@ -249,10 +249,40 @@ export class MenuScene extends Phaser.Scene {
     }).setOrigin(0.5);
     this.lobbyElements.push(idLabel);
 
+    // Copy button
+    const copyBtn = this._makeLobbySmallButton(cx + 160, 110, 'COPIER', () => {
+      navigator.clipboard.writeText(roomId).then(() => {
+        copyConfirm.setText('Copie !');
+        this.time.delayedCall(1500, () => copyConfirm.setText(''));
+      }).catch(() => {
+        // Fallback: prompt
+        window.prompt('Code salle:', roomId);
+      });
+    });
+    this.lobbyElements.push(...copyBtn);
+
+    const copyConfirm = this.add.text(cx + 240, 110, '', {
+      fontSize: '13px', fontFamily: 'Courier New', color: '#2ecc71',
+    }).setOrigin(0, 0.5);
+    this.lobbyElements.push(copyConfirm);
+
     const copyHint = this.add.text(cx, 135, '(partagez ce code pour inviter des joueurs)', {
       fontSize: '13px', fontFamily: 'Courier New', color: '#666',
     }).setOrigin(0.5);
     this.lobbyElements.push(copyHint);
+
+    // Quit / Leave room button (top-right)
+    const quitBtn = this._makeLobbySmallButton(1180, 40, 'QUITTER', () => {
+      if (this.room) {
+        this.room.leave();
+        this.room = null;
+      }
+      this.lobbyElements.forEach(el => el.destroy());
+      this.lobbyElements = [];
+      this.inLobby = false;
+      this._drawMenu();
+    }, 0xe74c3c);
+    this.lobbyElements.push(...quitBtn);
 
     // Player slots (4 positions)
     this.playerSlots = [];
@@ -314,6 +344,27 @@ export class MenuScene extends Phaser.Scene {
     this.lobbyElements.push(this.playerCountText);
 
     this._refreshLobbyUI();
+  }
+
+  _makeLobbySmallButton(x, y, label, callback, color) {
+    const c = color || 0xffd93d;
+    const w = 100, h = 30;
+    const bg = this.add.graphics();
+    bg.fillStyle(c, 0.2);
+    bg.fillRoundedRect(x - w / 2, y - h / 2, w, h, 6);
+    bg.lineStyle(1.5, c, 0.8);
+    bg.strokeRoundedRect(x - w / 2, y - h / 2, w, h, 6);
+
+    const txt = this.add.text(x, y, label, {
+      fontSize: '13px', fontFamily: 'Courier New', fontStyle: 'bold',
+      color: '#' + c.toString(16).padStart(6, '0'),
+    }).setOrigin(0.5);
+
+    const zone = this.add.zone(x, y, w, h).setInteractive({ useHandCursor: true });
+    zone.on('pointerover', () => { bg.clear(); bg.fillStyle(c, 0.4); bg.fillRoundedRect(x - w/2, y - h/2, w, h, 6); bg.lineStyle(1.5, c, 1); bg.strokeRoundedRect(x - w/2, y - h/2, w, h, 6); });
+    zone.on('pointerout', () => { bg.clear(); bg.fillStyle(c, 0.2); bg.fillRoundedRect(x - w/2, y - h/2, w, h, 6); bg.lineStyle(1.5, c, 0.8); bg.strokeRoundedRect(x - w/2, y - h/2, w, h, 6); });
+    zone.on('pointerdown', callback);
+    return [bg, txt, zone];
   }
 
   _makeLobbyButton(x, y, label, callback) {
