@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Emergency Crew</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #0f0f23;
+      overflow: hidden;
+      font-family: 'Courier New', monospace;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+    }
+    canvas { display: block; }
+    #room-input {
+      position: absolute;
+      top: -9999px;
+      left: -9999px;
+      opacity: 0;
+      font-family: 'Courier New', monospace;
+      font-size: 18px;
+      background: #1a1a2e;
+      color: #ffd93d;
+      border: 2px solid #ffd93d;
+      border-radius: 4px;
+      padding: 8px 12px;
+      text-align: center;
+      width: 240px;
+      outline: none;
+      z-index: 100;
+    }
+    #room-input.visible {
+      opacity: 1;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+    }
+  </style>
+</head>
+<body>
+  <input id="room-input" type="text" maxlength="12" placeholder="Code salle..." autocomplete="off">
+  <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
+  <script src="https://unpkg.com/colyseus.js@0.15.25/dist/colyseus.js"></script>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
