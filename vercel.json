@@ -1,6 +1,4 @@
 {
-  "rewrites": [
-    { "source": "/assets/:path*", "destination": "/assets/:path*" },
-    { "source": "/:path*", "destination": "/client/:path*" }
-  ]
+  "buildCommand": "cp -r assets client/assets",
+  "outputDirectory": "client"
 }
