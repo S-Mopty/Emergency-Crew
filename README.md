@@ -1,72 +1,88 @@
+![Emergency Crew Logo](emergency_crew_logo.svg)
+
 # 🚨 Emergency Crew
 
-> **"Réparez la station. Sabotez vos collègues. Devenez l'Employé du Mois."**
-
-**Emergency Crew** est un jeu multijoueur (3-6 joueurs) de survie technique en **2D isométrique**. Une équipe de maintenance est coincée dans une station qui tombe en ruines. Tout le monde doit coopérer pour empêcher l'explosion — mais à la fin, un seul joueur sera sacré **Employé du Mois**.
+> *"Réparez la station. Sabotez vos collègues. Devenez l'Employé du Mois."*
 
 ---
 
-## 🎮 Le Pitch
+## 🎮 Présentation
 
-La station est en alerte. Les pannes s'enchaînent, la jauge de stabilité chute, et les objets de réparation sont en nombre insuffisant. Vous devez réparer pour survivre, mais chaque réparation rapporte des **Crédits de Maintenance** — et seul le meilleur score gagne.
+**Emergency Crew** est un jeu multijoueur de survie technique en **2D isométrique**, jouable de **3 à 6 joueurs**.
 
-Le dilemme : **trop de sabotage et la station explose** (tout le monde perd). **Pas assez et vous laissez la victoire aux autres.**
+Une équipe de maintenance se retrouve coincée dans une station (spatiale, sous-marine ou souterraine) au bord de l'effondrement. Les pannes se multiplient, les systèmes lâchent un par un, et le temps presse. Tout le monde doit mettre la main à la pâte pour empêcher la station d'exploser — mais à la fin, **un seul joueur sera sacré Employé du Mois**.
 
----
-
-## ✨ Caractéristiques
-
-- **Multijoueur local/en ligne** — 3 à 6 joueurs par manche
-- **Manches courtes** — 7 à 8min30 selon le nombre de joueurs
-- **Combat non-létal** — Bousculade et Coup Chargé pour interrompre, jamais pour éliminer
-- **Pannes en escalade** — 3 phases de difficulté croissante, jusqu'au chaos total
-- **Inventaire à 1 slot** — Chaque objet ramassé est un choix stratégique
-- **Outils spéciaux rares** — Bonus puissants mais qui occupent votre unique slot
-- **Classement de fin** — Employé du Mois, Saboteur, Héros Silencieux, Stagiaire
+C'est là que réside le cœur du jeu : la **coopération est obligatoire pour survivre**, mais la **compétition individuelle décide du vainqueur**. Trop de sabotage entre joueurs et la station explose — tout le monde perd. Pas assez d'agressivité et vous laissez la victoire à quelqu'un d'autre.
 
 ---
 
-## 🗂️ Documentation du Game Design
+## ⚡ Les Piliers du Jeu
 
-| Document | Contenu |
+### Urgence constante
+Chaque manche dure entre **7 et 8 minutes 30** selon le nombre de joueurs. Le chrono ne s'arrête jamais. Les pannes arrivent par vagues de plus en plus intenses, réparties en trois phases :
+- **Phase 1 — Calme avant la tempête** : une seule panne à la fois, rythme lent. Les joueurs découvrent la map et commencent à accumuler des points.
+- **Phase 2 — Ça chauffe** : deux pannes simultanées, les objets de réparation deviennent insuffisants, les conflits commencent.
+- **Phase 3 — Alerte Rouge** : jusqu'à trois pannes en même temps, et la **Surchauffe** peut se déclencher — un compte à rebours de 30 secondes qui, s'il atteint zéro, détruit la station immédiatement.
+
+### Combat non-létal
+On ne tue personne dans Emergency Crew. Le combat sert uniquement à **interrompre et ralentir** les autres joueurs. Deux actions sont disponibles :
+- La **Bousculade** : action rapide qui repousse un joueur et lui fait lâcher son objet. Elle ne peut pas interrompre une réparation en cours.
+- Le **Coup Chargé** : action lourde qui nécessite une seconde d'immobilité pour charger. Si elle touche, la cible est étourdie pendant 2 secondes et lâche son objet. C'est la **seule action capable d'annuler une réparation en cours**, ce qui en fait l'outil de sabotage ultime — mais aussi le plus risqué, puisque le joueur est vulnérable pendant la charge.
+
+### Inventaire minimal
+Chaque joueur ne dispose que d'**un seul emplacement d'inventaire**. Il peut contenir un objet de réparation (Kit de Soudure, Fusible, Liquide de Refroidissement) ou un outil spécial rare (Clé Dorée, Bottes Magnétiques, Scanner). Jamais les deux en même temps. Ce slot unique transforme chaque ramassage en décision stratégique et chaque objet posé au sol en opportunité de vol.
+
+---
+
+## 🔧 Les Pannes
+
+Les pannes apparaissent dans les **Salles Techniques** de la station. Chaque type de panne nécessite un objet spécifique pour être réparé, et produit un effet négatif tant qu'elle est active :
+
+| Panne | Objet requis | Effet si non réparée | Temps de réparation |
+| :--- | :--- | :--- | :---: |
+| **Fuite de Gaz** | Kit de Soudure | Ralentit tous les joueurs dans la zone | 3s |
+| **Court-Circuit** | Fusible | Brouillard de guerre (vision réduite) | 3s |
+| **Surchauffe** | Liquide de Refroidissement | Compte à rebours de 30s → Game Over total | 4s |
+
+Pour réparer, le joueur doit se placer devant le panneau de la panne avec le bon objet en main et maintenir l'interaction. Pendant ces secondes de réparation, il est **immobile et vulnérable** au Coup Chargé.
+
+---
+
+## 🏗️ La Station
+
+Chaque map est conçue à la main et suit un template de **5 salles** :
+- **1 Salle de Stockage centrale** : le point névralgique où apparaissent les objets de réparation et les outils spéciaux. Il n'y a jamais assez d'objets pour couvrir toutes les pannes actives — la pénurie est voulue.
+- **4 Salles Techniques** : réparties autour du Stockage, c'est là que se déclenchent les pannes. Les couloirs qui les relient deviennent des zones d'embuscade naturelles.
+
+---
+
+## 📊 La Jauge de Stabilité
+
+C'est la barre de vie de la station, visible en permanence en haut de l'écran. Elle démarre à **100 points** et descend tant que des pannes restent actives (de -2 à -5 pts/seconde selon le type). Chaque réparation réussie la fait remonter de 10 points. Si elle tombe à zéro, la station est détruite et **tout le monde perd**.
+
+---
+
+## 🏆 Score & Classement
+
+Chaque action rapporte des **Crédits de Maintenance** :
+
+| Action | Crédits |
+| :--- | :---: |
+| Réparation mineure (Gaz, Court-Circuit) | 20 pts |
+| Réparation critique (Surchauffe) | 100 pts |
+| Coup Chargé réussi | 5 pts |
+| Aide coopérative (présence en salle pendant une réparation alliée) | 10 pts |
+
+### Écran de fin — Victoire (station sauvée)
+| Titre | Critère |
 | :--- | :--- |
-| [`01_Vision_Globale.md`](01_Vision_Globale.md) | Concept, piliers du jeu, dilemme central |
-| [`02_Regles_Et_Mecaniques.md`](02_Regles_Et_Mecaniques.md) | Règles complètes, combat, pannes, inventaire, scoring |
-| [`03_Systemes_Et_Objets.md`](03_Systemes_Et_Objets.md) | Types de pannes, objets, jauge de stabilité |
-| [`04_Score_Et_Progression.md`](04_Score_Et_Progression.md) | Barème des crédits, écran de fin, podium |
-| [`05_Technical_Setup.md`](05_Technical_Setup.md) | Architecture technique, réseau, prochaines étapes |
+| 🏆 **Employé du Mois** | Le plus de Crédits de Maintenance |
+| 🔧 **Héros Silencieux** | Le plus de réparations critiques |
+| 👊 **Le Saboteur** | Le plus d'interruptions infligées |
+| 📋 **Le Stagiaire** | Le moins de Crédits de Maintenance |
 
----
-
-## 🕹️ Résumé des Mécaniques
-
-### Déroulement d'une manche
-
-```
-SPAWN → PHASE 1 (calme) → PHASE 2 (tension) → PHASE 3 (chaos) → FIN
-         1 panne/20s        2 pannes/12s       3 pannes/8s
-                                                + Surchauffe possible
-```
-
-### Combat
-
-| Action | Effet | Interrompt une réparation ? |
-| :--- | :--- | :---: |
-| **Bousculade** | Repousse + drop d'objet | ❌ |
-| **Coup Chargé** | Stun 2s + drop d'objet | ✅ |
-
-### Types de pannes
-
-| Panne | Objet requis | Conséquence |
-| :--- | :--- | :--- |
-| Fuite de Gaz | Kit de Soudure | Ralentissement zone |
-| Court-Circuit | Fusible | Brouillard de guerre |
-| Surchauffe | Liquide Refroidissement | 30s → Game Over total |
-
-### Condition de victoire
-
-- **Station debout au chrono final** → Victoire collective, classement individuel
-- **Jauge de stabilité à 0** → Défaite collective : *"Licenciés pour Faute Grave"*
+### Écran de fin — Défaite (station détruite)
+Le temps de survie et les stats individuelles sont affichés. Titre collectif : **"Licenciés pour Faute Grave"**.
 
 ---
 
@@ -80,25 +96,58 @@ SPAWN → PHASE 1 (calme) → PHASE 2 (tension) → PHASE 3 (chaos) → FIN
 
 ## 🚧 Roadmap
 
-- [x] Vision du jeu & piliers de design
-- [x] Système de combat (Bousculade / Coup Chargé)
-- [x] Système de pannes en 3 phases
-- [x] Règles d'inventaire (1 slot)
-- [x] Scoring & classement de fin
-- [ ] Prototype — Déplacement isométrique
-- [ ] Prototype — Collision entre joueurs
-- [ ] Prototype — Ramassage / dépose d'objet
+### Phase 1 — Design
+- [x] Rédaction du Game Design Document
+- [ ] Level design de la première map
+
+### Phase 2 — Prototype jouable
+- [ ] Déplacement isométrique fluide
+- [ ] Collision et bousculade entre joueurs
+- [ ] Système de ramassage / dépose d'objet
+- [ ] Coup Chargé et système de stun
 - [ ] Première map jouable (5 salles)
-- [ ] Système de pannes fonctionnel
-- [ ] Playtest & équilibrage des valeurs
+
+### Phase 3 — Systèmes de jeu
+- [ ] Système de pannes (spawn, escalade en 3 phases)
+- [ ] Mécanique de réparation (barre de progression)
+- [ ] Jauge de Stabilité
+- [ ] Inventaire à 1 slot
+- [ ] Spawn des objets en Salle de Stockage
+
+### Phase 4 — Multijoueur & Score
+- [ ] Architecture réseau (server-authoritative)
+- [ ] Synchronisation des joueurs
+- [ ] Système de score (Crédits de Maintenance)
+- [ ] Écran de fin et classement
+
+### Phase 5 — Contenu & Polish
+- [ ] Maps supplémentaires
+- [ ] Outils spéciaux (Clé Dorée, Bottes Magnétiques, Scanner)
 - [ ] Contenu dynamique (portes, couloirs destructibles)
-- [ ] Polish — UI, sons, effets visuels
+- [ ] UI, sons, effets visuels
+- [ ] Playtest & équilibrage
 
 ---
 
-## 👥 Crédits
+## 🗂️ Documentation
 
-Projet en cours de développement.
+| Document | Contenu |
+| :--- | :--- |
+| [`01_Vision_Globale.md`](01_Vision_Globale.md) | Concept, piliers du jeu, dilemme central |
+| [`02_Regles_Et_Mecaniques.md`](02_Regles_Et_Mecaniques.md) | Règles complètes, combat, pannes, inventaire, scoring |
+| [`03_Systemes_Et_Objets.md`](03_Systemes_Et_Objets.md) | Types de pannes, objets, jauge de stabilité |
+| [`04_Score_Et_Progression.md`](04_Score_Et_Progression.md) | Barème des crédits, écran de fin, podium |
+| [`05_Technical_Setup.md`](05_Technical_Setup.md) | Architecture technique, réseau, prochaines étapes |
+
+---
+
+## 👥 L'Équipe
+
+- [@A-Jeaugey](https://github.com/A-Jeaugey)
+- [@Ito-x](https://github.com/Ito-x)
+- [@martin21dfx](https://github.com/martin21dfx)
+- [@SynnIA](https://github.com/SynnIA)
+- [@S-Mopty](https://github.com/S-Mopty)
 
 ---
 
