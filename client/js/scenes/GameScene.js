@@ -222,14 +222,16 @@ export class GameScene extends Phaser.Scene {
       g.destroy();
     });
 
-    // Stunned star texture
+    // Stunned star texture (small diamonds as stars)
     if (!this.textures.exists('fx_stars')) {
       const g = this.make.graphics({ add: false });
       g.fillStyle(0xffd93d);
-      // Draw 3 small stars
       for (let i = 0; i < 3; i++) {
-        const sx = 8 + i * 12;
-        g.fillStar(sx, 6, 3, 6, 5);
+        const cx = 8 + i * 12;
+        g.beginPath();
+        g.moveTo(cx, 0); g.lineTo(cx + 4, 6);
+        g.lineTo(cx, 12); g.lineTo(cx - 4, 6);
+        g.closePath(); g.fillPath();
       }
       g.generateTexture('fx_stars', 40, 12);
       g.destroy();
