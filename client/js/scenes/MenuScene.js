@@ -84,7 +84,7 @@ export class MenuScene extends Phaser.Scene {
 
     // Join button
     const joinBtn = this._makeButton(cx, 430, 'REJOINDRE', () => {
-      this._showJoinInput();
+      this._showJoinPanel();
     });
     this.menuElements.push(...joinBtn);
 
@@ -134,25 +134,69 @@ export class MenuScene extends Phaser.Scene {
   // ----------------------------------------------------------
   //  Join Input (uses hidden DOM input)
   // ----------------------------------------------------------
-  _showJoinInput() {
+  _showJoinPanel() {
+    // Block all clicks behind the panel
+    const overlay = this.add.graphics();
+    overlay.fillStyle(0x000000, 0.6);
+    overlay.fillRect(0, 0, 1280, 720);
+    const overlayZone = this.add.zone(640, 360, 1280, 720).setInteractive();
+    overlayZone.setDepth(50);
+    overlay.setDepth(50);
+
+    // Panel background
+    const panel = this.add.graphics();
+    panel.fillStyle(0x1a1a3e);
+    panel.fillRoundedRect(390, 270, 500, 180, 12);
+    panel.lineStyle(2, 0xffd93d, 0.8);
+    panel.strokeRoundedRect(390, 270, 500, 180, 12);
+    panel.setDepth(51);
+
+    const title = this.add.text(640, 295, 'REJOINDRE UNE PARTIE', {
+      fontSize: '20px', fontFamily: 'Courier New', fontStyle: 'bold',
+      color: '#ffd93d',
+    }).setOrigin(0.5).setDepth(52);
+
+    const hint = this.add.text(640, 325, 'Entrez le code salle puis appuyez Entree', {
+      fontSize: '13px', fontFamily: 'Courier New', color: '#888',
+    }).setOrigin(0.5).setDepth(52);
+
+    // Show and position the DOM input inside the panel area
     const input = document.getElementById('room-input');
-    input.classList.add('visible');
+    input.style.top = '50%';
+    input.style.left = '50%';
+    input.style.transform = 'translate(-50%, -50%)';
+    input.style.opacity = '1';
     input.value = '';
     input.focus();
 
-    const handler = (e) => {
-      if (e.key === 'Enter' && input.value.trim()) {
-        const roomId = input.value.trim();
-        input.classList.remove('visible');
-        input.removeEventListener('keydown', handler);
-        this._joinRoom(roomId);
-      }
-      if (e.key === 'Escape') {
-        input.classList.remove('visible');
-        input.removeEventListener('keydown', handler);
-      }
+    // Confirm button
+    const confirmBtn = this._makePanelButton(560, 415, 'VALIDER', 0x2ecc71, () => {
+      if (input.value.trim()) cleanup(input.value.trim());
+    });
+    confirmBtn.forEach(el => el.setDepth(52));
+
+    // Cancel button
+    const cancelBtn = this._makePanelButton(720, 415, 'ANNULER', 0xe74c3c, () => {
+      cleanup(null);
+    });
+    cancelBtn.forEach(el => el.setDepth(52));
+
+    const allElements = [overlay, overlayZone, panel, title, hint, ...confirmBtn, ...cancelBtn];
+
+    const cleanup = (roomId) => {
+      input.style.top = '-9999px';
+      input.style.left = '-9999px';
+      input.style.opacity = '0';
+      input.removeEventListener('keydown', keyHandler);
+      allElements.forEach(el => el.destroy());
+      if (roomId) this._joinRoom(roomId);
     };
-    input.addEventListener('keydown', handler);
+
+    const keyHandler = (e) => {
+      if (e.key === 'Enter' && input.value.trim()) cleanup(input.value.trim());
+      if (e.key === 'Escape') cleanup(null);
+    };
+    input.addEventListener('keydown', keyHandler);
   }
 
   // ----------------------------------------------------------
@@ -344,6 +388,21 @@ export class MenuScene extends Phaser.Scene {
     this.lobbyElements.push(this.playerCountText);
 
     this._refreshLobbyUI();
+  }
+
+  _makePanelButton(x, y, label, color, callback) {
+    const w = 140, h = 40;
+    const bg = this.add.graphics();
+    bg.fillStyle(color, 0.85);
+    bg.fillRoundedRect(x - w / 2, y - h / 2, w, h, 6);
+    const txt = this.add.text(x, y, label, {
+      fontSize: '16px', fontFamily: 'Courier New', fontStyle: 'bold', color: '#fff',
+    }).setOrigin(0.5);
+    const zone = this.add.zone(x, y, w, h).setInteractive({ useHandCursor: true });
+    zone.on('pointerover', () => { bg.clear(); bg.fillStyle(color, 1); bg.fillRoundedRect(x - w/2, y - h/2, w, h, 6); });
+    zone.on('pointerout', () => { bg.clear(); bg.fillStyle(color, 0.85); bg.fillRoundedRect(x - w/2, y - h/2, w, h, 6); });
+    zone.on('pointerdown', callback);
+    return [bg, txt, zone];
   }
 
   _makeLobbySmallButton(x, y, label, callback, color) {
