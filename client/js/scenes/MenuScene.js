@@ -159,23 +159,38 @@ export class MenuScene extends Phaser.Scene {
   //  Colyseus Room Management
   // ----------------------------------------------------------
   async _createRoom() {
+    const loading = this._showLoading('Connexion au serveur...');
     try {
       this.room = await this.client.create('game');
+      loading.destroy();
       this._enterLobby();
     } catch (err) {
+      loading.destroy();
       console.error('Failed to create room:', err);
-      this._showError('Impossible de creer la partie. Le serveur est-il lance ?');
+      this._showError('Connexion echouee. Le serveur est peut-etre en veille (attendez 30s puis reessayez).');
     }
   }
 
   async _joinRoom(roomId) {
+    const loading = this._showLoading('Connexion...');
     try {
       this.room = await this.client.joinById(roomId);
+      loading.destroy();
       this._enterLobby();
     } catch (err) {
+      loading.destroy();
       console.error('Failed to join room:', err);
       this._showError('Impossible de rejoindre. Verifiez le code salle.');
     }
+  }
+
+  _showLoading(message) {
+    const txt = this.add.text(640, 490, message, {
+      fontSize: '16px', fontFamily: 'Courier New',
+      color: '#ffd93d', stroke: '#000', strokeThickness: 2,
+    }).setOrigin(0.5);
+    this.tweens.add({ targets: txt, alpha: { from: 1, to: 0.3 }, duration: 500, yoyo: true, repeat: -1 });
+    return txt;
   }
 
   _showError(message) {
