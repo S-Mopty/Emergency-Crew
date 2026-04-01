@@ -4,7 +4,7 @@
 
 const SERVER_URL = window.location.hostname === 'localhost'
   ? 'ws://localhost:3000'
-  : 'wss://emergency-crew.onrender.com';
+  : 'wss://emergencycrew.onrender.com';
 
 export class MenuScene extends Phaser.Scene {
   constructor() {
