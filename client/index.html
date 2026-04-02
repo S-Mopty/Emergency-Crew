@@ -1,0 +1,722 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Emergency Crew</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #080816;
+      overflow: hidden;
+      font-family: 'Share Tech Mono', 'Courier New', monospace;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      color: #fff;
+    }
+    canvas { display: block; }
+
+    /* ── Pre-game UI overlay ── */
+    #pregame-overlay {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 10;
+      background: #080816;
+    }
+    #pregame-overlay.hidden { display: none; }
+
+    .screen { display: none; width: 100%; max-width: 750px; text-align: center; padding: 20px; }
+    .screen.active { display: block; }
+
+    /* ══════════════════════════════════════════
+       MENU SCREEN
+       ══════════════════════════════════════════ */
+    #menu-screen {
+      position: relative;
+    }
+
+    /* Animated background grid */
+    #menu-screen::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background:
+        linear-gradient(rgba(255,107,107,0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,107,107,0.03) 1px, transparent 1px);
+      background-size: 60px 60px;
+      animation: gridScroll 20s linear infinite;
+      pointer-events: none;
+    }
+    @keyframes gridScroll {
+      0% { transform: translate(0, 0); }
+      100% { transform: translate(60px, 60px); }
+    }
+
+    /* Floating particles */
+    #menu-screen::after {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background:
+        radial-gradient(1px 1px at 10% 20%, rgba(255,107,107,0.3), transparent),
+        radial-gradient(1px 1px at 30% 60%, rgba(255,217,61,0.2), transparent),
+        radial-gradient(1px 1px at 50% 80%, rgba(52,152,219,0.3), transparent),
+        radial-gradient(1px 1px at 70% 30%, rgba(46,204,113,0.2), transparent),
+        radial-gradient(1px 1px at 90% 70%, rgba(255,107,107,0.2), transparent),
+        radial-gradient(1.5px 1.5px at 20% 90%, rgba(255,255,255,0.15), transparent),
+        radial-gradient(1px 1px at 80% 10%, rgba(255,255,255,0.1), transparent),
+        radial-gradient(1px 1px at 60% 40%, rgba(255,217,61,0.15), transparent);
+      animation: particleDrift 30s linear infinite;
+      pointer-events: none;
+      z-index: -1;
+    }
+    @keyframes particleDrift {
+      0% { transform: translateY(0); }
+      100% { transform: translateY(-100vh); }
+    }
+
+    #menu-screen h1 {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 62px;
+      font-weight: 900;
+      color: #ff6b6b;
+      text-shadow:
+        0 0 40px rgba(255,107,107,0.5),
+        0 0 80px rgba(255,107,107,0.2),
+        0 4px 0 rgba(0,0,0,0.3);
+      margin-bottom: 6px;
+      letter-spacing: 6px;
+      animation: titlePulse 3s ease-in-out infinite;
+    }
+    @keyframes titlePulse {
+      0%, 100% { text-shadow: 0 0 40px rgba(255,107,107,0.5), 0 0 80px rgba(255,107,107,0.2), 0 4px 0 rgba(0,0,0,0.3); }
+      50% { text-shadow: 0 0 60px rgba(255,107,107,0.7), 0 0 120px rgba(255,107,107,0.3), 0 4px 0 rgba(0,0,0,0.3); }
+    }
+
+    /* Decorative line under title */
+    .title-deco {
+      width: 200px;
+      height: 2px;
+      margin: 0 auto 8px;
+      background: linear-gradient(90deg, transparent, #ff6b6b, transparent);
+      opacity: 0.6;
+    }
+
+    #menu-screen .subtitle {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 18px;
+      color: #ffd93d;
+      margin-bottom: 10px;
+      letter-spacing: 8px;
+      text-transform: uppercase;
+      opacity: 0.9;
+    }
+
+    .menu-tagline {
+      font-size: 13px;
+      color: #556;
+      margin-bottom: 50px;
+      font-style: italic;
+    }
+
+    .menu-btn {
+      display: block;
+      width: 340px;
+      margin: 14px auto;
+      padding: 16px 0;
+      font-family: 'Orbitron', sans-serif;
+      font-size: 16px;
+      font-weight: 700;
+      letter-spacing: 2px;
+      border: 2px solid rgba(255,217,61,0.4);
+      border-radius: 10px;
+      background: linear-gradient(180deg, rgba(26,26,62,0.9), rgba(15,15,35,0.95));
+      color: #ffd93d;
+      cursor: pointer;
+      transition: all 0.25s ease;
+      position: relative;
+      overflow: hidden;
+    }
+    .menu-btn::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(90deg, transparent, rgba(255,217,61,0.08), transparent);
+      transform: translateX(-100%);
+      transition: transform 0.5s ease;
+    }
+    .menu-btn:hover::before {
+      transform: translateX(100%);
+    }
+    .menu-btn:hover {
+      background: linear-gradient(180deg, rgba(42,42,94,0.95), rgba(26,26,62,0.95));
+      color: #fff;
+      border-color: rgba(255,255,255,0.5);
+      transform: translateY(-2px);
+      box-shadow: 0 8px 25px rgba(255,217,61,0.15);
+    }
+    .menu-btn:active {
+      transform: translateY(0);
+    }
+
+    .menu-footer {
+      margin-top: 40px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 20px;
+    }
+
+    .version {
+      font-size: 11px;
+      color: #334;
+      letter-spacing: 1px;
+    }
+
+    .btn-lang {
+      padding: 6px 18px;
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 13px;
+      font-weight: bold;
+      border: 1px solid #334;
+      border-radius: 6px;
+      background: rgba(255,255,255,0.03);
+      color: #667;
+      cursor: pointer;
+      transition: all 0.2s;
+      letter-spacing: 2px;
+    }
+    .btn-lang:hover { color: #fff; border-color: #667; background: rgba(255,255,255,0.06); }
+
+    /* ══════════════════════════════════════════
+       JOIN SCREEN
+       ══════════════════════════════════════════ */
+    #join-screen h2 {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 28px;
+      font-weight: 700;
+      color: #ffd93d;
+      margin-bottom: 8px;
+      letter-spacing: 3px;
+      text-shadow: 0 0 20px rgba(255,217,61,0.3);
+    }
+    .join-subtitle {
+      font-size: 13px;
+      color: #556;
+      margin-bottom: 30px;
+    }
+    #join-screen input {
+      width: 320px;
+      padding: 14px 20px;
+      font-family: 'Orbitron', sans-serif;
+      font-size: 22px;
+      font-weight: 700;
+      text-align: center;
+      letter-spacing: 6px;
+      text-transform: uppercase;
+      background: rgba(26,26,62,0.8);
+      color: #ffd93d;
+      border: 2px solid rgba(255,217,61,0.3);
+      border-radius: 10px;
+      outline: none;
+      transition: all 0.2s;
+    }
+    #join-screen input:focus {
+      border-color: #ffd93d;
+      color: #fff;
+      box-shadow: 0 0 20px rgba(255,217,61,0.15);
+    }
+    #join-screen input::placeholder { color: #334; letter-spacing: 2px; font-size: 16px; }
+    #join-screen .join-actions { margin-top: 24px; display: flex; justify-content: center; gap: 12px; }
+    .btn-confirm {
+      padding: 14px 40px;
+      font-family: 'Orbitron', sans-serif;
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn-confirm.primary {
+      background: linear-gradient(180deg, #2ecc71, #27ae60);
+      color: #fff;
+      box-shadow: 0 4px 15px rgba(46,204,113,0.3);
+    }
+    .btn-confirm.primary:hover {
+      background: linear-gradient(180deg, #3ddb80, #2ecc71);
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(46,204,113,0.4);
+    }
+    .btn-confirm.secondary {
+      background: rgba(255,255,255,0.05);
+      color: #667;
+      border: 1px solid #334;
+    }
+    .btn-confirm.secondary:hover { color: #fff; border-color: #667; }
+
+    /* ══════════════════════════════════════════
+       LOBBY SCREEN
+       ══════════════════════════════════════════ */
+    #lobby-screen h2 {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 28px;
+      font-weight: 700;
+      color: #ffd93d;
+      margin-bottom: 6px;
+      letter-spacing: 3px;
+      text-shadow: 0 0 20px rgba(255,217,61,0.3);
+    }
+    .room-code {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 18px;
+      font-weight: 700;
+      color: #2ecc71;
+      margin-bottom: 4px;
+      cursor: pointer;
+      letter-spacing: 3px;
+      transition: all 0.2s;
+    }
+    .room-code:hover {
+      color: #3ddb80;
+      text-shadow: 0 0 10px rgba(46,204,113,0.4);
+    }
+    .room-hint { font-size: 11px; color: #445; margin-bottom: 30px; }
+
+    .slots {
+      display: flex;
+      justify-content: center;
+      gap: 16px;
+      margin-bottom: 30px;
+      flex-wrap: wrap;
+    }
+    .slot {
+      width: 145px;
+      padding: 22px 10px 18px;
+      background: linear-gradient(180deg, rgba(26,26,62,0.8), rgba(15,15,40,0.9));
+      border: 2px solid rgba(51,51,102,0.5);
+      border-radius: 14px;
+      text-align: center;
+      transition: all 0.3s;
+    }
+    .slot .dot {
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      margin: 0 auto 12px;
+      opacity: 0.15;
+      transition: all 0.3s;
+      box-shadow: none;
+    }
+    .slot.filled .dot {
+      opacity: 1;
+      box-shadow: 0 0 20px currentColor;
+    }
+    .slot .slot-label {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 13px;
+      color: #445;
+      margin-bottom: 4px;
+      transition: all 0.3s;
+    }
+    .slot.filled .slot-label { color: #fff; font-weight: bold; }
+    .slot .slot-color {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    .slot.local {
+      border-color: rgba(46,204,113,0.5);
+      box-shadow: 0 0 20px rgba(46,204,113,0.1);
+    }
+    .slot.local .slot-label { color: #2ecc71; }
+    .slot.filled {
+      border-color: rgba(255,255,255,0.15);
+    }
+
+    .player-count {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 16px;
+      color: #889;
+      margin-bottom: 16px;
+      letter-spacing: 1px;
+    }
+
+    .btn-start {
+      display: inline-block;
+      padding: 16px 60px;
+      font-family: 'Orbitron', sans-serif;
+      font-size: 16px;
+      font-weight: 700;
+      letter-spacing: 2px;
+      border: none;
+      border-radius: 10px;
+      background: linear-gradient(180deg, #2ecc71, #27ae60);
+      color: #fff;
+      cursor: pointer;
+      transition: all 0.25s;
+      box-shadow: 0 4px 20px rgba(46,204,113,0.3);
+    }
+    .btn-start:hover {
+      background: linear-gradient(180deg, #3ddb80, #2ecc71);
+      transform: translateY(-2px);
+      box-shadow: 0 8px 30px rgba(46,204,113,0.4);
+    }
+    .btn-start:disabled {
+      background: #222;
+      color: #445;
+      cursor: not-allowed;
+      box-shadow: none;
+      transform: none;
+    }
+    .lobby-status {
+      font-size: 13px;
+      color: #667;
+      margin-top: 14px;
+      letter-spacing: 0.5px;
+    }
+
+    .error-msg {
+      color: #ff6b6b;
+      font-size: 13px;
+      margin-top: 16px;
+      min-height: 20px;
+      text-shadow: 0 0 10px rgba(255,107,107,0.3);
+    }
+
+    /* ══════════════════════════════════════════
+       GAME HUD OVERLAY
+       ══════════════════════════════════════════ */
+    #game-hud {
+      position: absolute;
+      inset: 0;
+      z-index: 5;
+      pointer-events: none;
+      display: none;
+      font-family: 'Share Tech Mono', 'Courier New', monospace;
+    }
+    #game-hud.active { display: block; }
+
+    /* Top bar */
+    #game-hud .hud-top {
+      position: absolute; top: 0; left: 0; right: 0;
+      height: 56px;
+      background: linear-gradient(180deg, rgba(8,8,22,0.95) 0%, rgba(8,8,22,0.7) 70%, transparent 100%);
+      display: flex;
+      align-items: flex-start;
+      padding: 0 24px;
+    }
+
+    /* Timer */
+    .hud-timer-wrap {
+      flex: 0 0 auto;
+      padding-top: 8px;
+    }
+    #hud-timer {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 28px;
+      font-weight: 700;
+      color: #fff;
+      text-shadow: 0 0 12px rgba(255,255,255,0.3);
+      letter-spacing: 2px;
+    }
+    #hud-timer.warning {
+      color: #ff4444;
+      text-shadow: 0 0 16px rgba(255,0,0,0.6);
+      animation: timerBlink 0.5s ease-in-out infinite;
+    }
+    @keyframes timerBlink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.6; }
+    }
+    #hud-timer-label {
+      font-size: 9px;
+      color: #556;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+    }
+
+    /* Stability bar */
+    .hud-stability-wrap {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding-top: 8px;
+      max-width: 320px;
+      margin: 0 auto;
+    }
+    #hud-stability-label {
+      font-size: 9px;
+      color: #556;
+      margin-bottom: 3px;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+    }
+    .stability-bar {
+      width: 100%;
+      height: 20px;
+      background: rgba(26,26,62,0.8);
+      border-radius: 10px;
+      overflow: hidden;
+      border: 1px solid rgba(51,51,102,0.6);
+      position: relative;
+      box-shadow: inset 0 2px 4px rgba(0,0,0,0.3);
+    }
+    .stability-bar-fill {
+      height: 100%;
+      border-radius: 10px;
+      transition: width 0.3s ease, background 0.3s ease;
+      background: linear-gradient(90deg, #2ecc71, #3ddb80);
+      box-shadow: 0 0 10px rgba(46,204,113,0.3);
+    }
+    .stability-bar-fill.medium {
+      background: linear-gradient(90deg, #e67e22, #f39c12);
+      box-shadow: 0 0 10px rgba(243,156,18,0.3);
+    }
+    .stability-bar-fill.low {
+      background: linear-gradient(90deg, #c0392b, #e74c3c);
+      box-shadow: 0 0 10px rgba(231,76,60,0.3);
+      animation: barPulse 1s ease-in-out infinite;
+    }
+    @keyframes barPulse {
+      0%, 100% { box-shadow: 0 0 10px rgba(231,76,60,0.3); }
+      50% { box-shadow: 0 0 20px rgba(231,76,60,0.6); }
+    }
+    #hud-stability-text {
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      font-family: 'Orbitron', sans-serif;
+      font-size: 11px;
+      font-weight: 700;
+      color: #fff;
+      text-shadow: 0 1px 4px rgba(0,0,0,0.9);
+    }
+
+    /* Score */
+    .hud-score-wrap {
+      flex: 0 0 auto;
+      text-align: right;
+      padding-top: 8px;
+    }
+    #hud-score {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 28px;
+      font-weight: 700;
+      color: #ffd93d;
+      text-shadow: 0 0 12px rgba(255,217,61,0.4);
+      letter-spacing: 1px;
+    }
+    #hud-score-label {
+      font-size: 9px;
+      color: #556;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+    }
+
+    /* Minimap */
+    #hud-minimap {
+      position: absolute;
+      bottom: 56px;
+      right: 12px;
+      width: 180px;
+      height: 140px;
+      background: rgba(8,8,22,0.85);
+      border: 1px solid rgba(74,74,142,0.5);
+      border-radius: 6px;
+      pointer-events: none;
+      image-rendering: pixelated;
+    }
+
+    /* Bottom bar */
+    #game-hud .hud-bottom {
+      position: absolute; bottom: 0; left: 0; right: 0;
+      height: 48px;
+      background: linear-gradient(0deg, rgba(8,8,22,0.95) 0%, rgba(8,8,22,0.7) 70%, transparent 100%);
+      display: flex;
+      align-items: flex-end;
+      padding: 0 24px 10px;
+    }
+    #hud-item {
+      flex: 0 0 auto;
+      font-size: 14px;
+      color: #556;
+      letter-spacing: 0.5px;
+    }
+    #hud-item.has-item {
+      color: #ffd93d;
+      text-shadow: 0 0 8px rgba(255,217,61,0.3);
+      font-weight: bold;
+    }
+    #hud-emergencies {
+      flex: 1;
+      font-size: 13px;
+      font-weight: bold;
+      color: #ff6b6b;
+      text-shadow: 0 0 10px rgba(255,0,0,0.4);
+      text-align: center;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      letter-spacing: 0.5px;
+      min-width: 0;
+      padding: 0 12px;
+    }
+    #hud-controls {
+      flex: 0 0 auto;
+      font-size: 10px;
+      color: #334;
+      text-align: right;
+      letter-spacing: 0.5px;
+      white-space: nowrap;
+    }
+
+    /* Emergency alert banner */
+    #hud-alert {
+      position: absolute;
+      top: 18%;
+      left: 50%;
+      transform: translateX(-50%);
+      font-family: 'Orbitron', sans-serif;
+      font-size: 24px;
+      font-weight: 700;
+      color: #ff0000;
+      background: rgba(40,0,0,0.9);
+      border: 2px solid #ff0000;
+      padding: 14px 40px;
+      border-radius: 10px;
+      text-shadow: 0 0 20px rgba(255,0,0,0.7);
+      box-shadow: 0 0 40px rgba(255,0,0,0.3);
+      opacity: 0;
+      transition: opacity 0.3s;
+      pointer-events: none;
+      letter-spacing: 3px;
+    }
+    #hud-alert.show {
+      opacity: 1;
+      animation: alertShake 0.3s ease-in-out;
+    }
+    @keyframes alertShake {
+      0%, 100% { transform: translateX(-50%) translateY(0); }
+      25% { transform: translateX(-50%) translateY(-4px); }
+      75% { transform: translateX(-50%) translateY(4px); }
+    }
+
+    /* Disconnect overlay */
+    #hud-disconnect {
+      position: absolute; inset: 0;
+      background: rgba(0,0,0,0.85);
+      display: none;
+      justify-content: center;
+      align-items: center;
+      flex-direction: column;
+      pointer-events: auto;
+    }
+    #hud-disconnect.active { display: flex; }
+    #hud-disconnect .dc-title {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 36px;
+      font-weight: 700;
+      color: #ff6b6b;
+      text-shadow: 0 0 30px rgba(255,107,107,0.5);
+      letter-spacing: 4px;
+    }
+    #hud-disconnect .dc-sub {
+      font-size: 16px;
+      color: #889;
+      margin-top: 12px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Pre-game UI (DOM-based) -->
+  <div id="pregame-overlay">
+
+    <!-- MENU -->
+    <div id="menu-screen" class="screen active">
+      <h1 id="menu-title">EMERGENCY CREW</h1>
+      <div class="title-deco"></div>
+      <div class="subtitle" id="menu-subtitle">Survie Cooperative</div>
+      <div class="menu-tagline" id="menu-tagline">Reparez. Survivez. Trahissez.</div>
+      <button class="menu-btn" id="btn-create">CREER UNE PARTIE</button>
+      <button class="menu-btn" id="btn-join">REJOINDRE</button>
+      <div class="menu-footer">
+        <span class="version" id="menu-version">v0.1 - Prototype</span>
+        <button class="btn-lang" id="btn-lang">FR</button>
+      </div>
+      <div class="error-msg" id="menu-error"></div>
+    </div>
+
+    <!-- JOIN -->
+    <div id="join-screen" class="screen">
+      <h2 id="join-title">REJOINDRE UNE PARTIE</h2>
+      <div class="join-subtitle" id="join-subtitle">Entrez le code de la salle</div>
+      <input type="text" id="room-input" maxlength="20" placeholder="Code salle..." autocomplete="off">
+      <div class="join-actions">
+        <button class="btn-confirm primary" id="btn-join-confirm">REJOINDRE</button>
+        <button class="btn-confirm secondary" id="btn-join-back">RETOUR</button>
+      </div>
+      <div class="error-msg" id="join-error"></div>
+    </div>
+
+    <!-- LOBBY -->
+    <div id="lobby-screen" class="screen">
+      <h2 id="lobby-title">SALLE D'ATTENTE</h2>
+      <div class="room-code" id="lobby-room-code">Code: ???</div>
+      <div class="room-hint" id="lobby-hint">(cliquez sur le code pour le copier)</div>
+      <div class="slots" id="lobby-slots"></div>
+      <div class="player-count" id="lobby-count">Joueurs: 0/4</div>
+      <button class="btn-start" id="btn-start" disabled>LANCER LA PARTIE</button>
+      <div class="lobby-status" id="lobby-status"></div>
+      <div class="error-msg" id="lobby-error"></div>
+    </div>
+
+  </div>
+
+  <!-- Game HUD (DOM-based, above canvas) -->
+  <div id="game-hud">
+    <div class="hud-top">
+      <div class="hud-timer-wrap">
+        <div id="hud-timer">03:00</div>
+        <div id="hud-timer-label">TEMPS</div>
+      </div>
+      <div class="hud-stability-wrap">
+        <div id="hud-stability-label">STABILITE</div>
+        <div class="stability-bar">
+          <div class="stability-bar-fill" id="hud-stability-fill" style="width:100%"></div>
+          <span id="hud-stability-text">100%</span>
+        </div>
+      </div>
+      <div class="hud-score-wrap">
+        <div id="hud-score">0</div>
+        <div id="hud-score-label">SCORE</div>
+      </div>
+    </div>
+    <div class="hud-bottom">
+      <div id="hud-item">Objet: aucun</div>
+      <div id="hud-emergencies"></div>
+      <div id="hud-controls">ZQSD:Bouger  E:Ramasser  ESPACE:Frapper  MAJ:Dash  R:Reparer</div>
+    </div>
+    <div id="hud-alert"></div>
+    <canvas id="hud-minimap" width="180" height="140"></canvas>
+    <div id="hud-disconnect">
+      <div class="dc-title">DECONNECTE</div>
+      <div class="dc-sub">Retour au menu...</div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
+  <script src="https://unpkg.com/colyseus.js@0.15.25/dist/colyseus.js"></script>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
