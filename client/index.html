@@ -4,45 +4,300 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Emergency Crew</title>
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body {
-      background: #0f0f23;
-      overflow: hidden;
-      font-family: 'Courier New', monospace;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      height: 100vh;
-    }
-    canvas { display: block; }
-    #room-input {
-      position: absolute;
-      top: -9999px;
-      left: -9999px;
-      opacity: 0;
-      font-family: 'Courier New', monospace;
-      font-size: 18px;
-      background: #1a1a2e;
-      color: #ffd93d;
-      border: 2px solid #ffd93d;
-      border-radius: 4px;
-      padding: 8px 12px;
-      text-align: center;
-      width: 240px;
-      outline: none;
-      z-index: 100;
-    }
-    #room-input.visible {
-      opacity: 1;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-    }
-  </style>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
-  <input id="room-input" type="text" maxlength="12" placeholder="Code salle..." autocomplete="off">
+
+  <!-- Animated grid background -->
+  <div class="grid-bg"></div>
+
+  <!-- ============================================================
+       SCREEN: MENU
+       ============================================================ -->
+  <section id="screen-menu" class="screen screen--active">
+    <div class="menu-content">
+      <h1 class="menu-title">EMERGENCY CREW</h1>
+      <p class="menu-subtitle">Survie Cooperative</p>
+
+      <div class="menu-panels">
+        <!-- Create Game -->
+        <div class="glass-panel menu-panel">
+          <h2>Creer une partie</h2>
+          <button id="btn-create" class="btn btn-primary" style="width:100%">CREER</button>
+        </div>
+
+        <!-- Join Game -->
+        <div class="glass-panel menu-panel">
+          <h2>Rejoindre</h2>
+          <input id="join-input" class="input" type="text" maxlength="12"
+                 placeholder="Code salle..." autocomplete="off">
+          <button id="btn-join" class="btn btn-secondary" style="width:100%">REJOINDRE</button>
+        </div>
+      </div>
+
+      <p id="menu-message" class="menu-message"></p>
+    </div>
+    <p class="menu-version">v0.2</p>
+  </section>
+
+  <!-- ============================================================
+       SCREEN: LOBBY
+       ============================================================ -->
+  <section id="screen-lobby" class="screen">
+    <div class="lobby-content">
+
+      <!-- Header -->
+      <div class="lobby-header">
+        <h1 class="lobby-title">SALLE D'ATTENTE</h1>
+        <div class="lobby-room-info">
+          <span class="lobby-room-code" id="lobby-room-code">???</span>
+          <button id="btn-copy-code" class="btn btn-secondary btn-small">COPIER</button>
+          <span class="lobby-copy-confirm" id="lobby-copy-confirm">Copie !</span>
+        </div>
+        <button id="btn-lobby-quit" class="btn btn-danger btn-small">QUITTER</button>
+      </div>
+
+      <!-- Stage: Player Characters -->
+      <div class="lobby-stage" id="lobby-stage">
+        <div class="stage-player" data-slot="0">
+          <div class="stage-ready-badge">PAS PRET</div>
+          <div class="stage-character">
+            <span class="char-hat"></span>
+            <div class="char-head"></div>
+            <div class="char-body" style="--player-color: var(--player-blue);"></div>
+            <span class="char-acc"></span>
+            <div class="char-shadow"></div>
+          </div>
+          <div class="stage-nickname">- vide -</div>
+          <div class="stage-type-label"></div>
+        </div>
+        <div class="stage-player" data-slot="1">
+          <div class="stage-ready-badge">PAS PRET</div>
+          <div class="stage-character">
+            <span class="char-hat"></span>
+            <div class="char-head"></div>
+            <div class="char-body" style="--player-color: var(--player-red);"></div>
+            <span class="char-acc"></span>
+            <div class="char-shadow"></div>
+          </div>
+          <div class="stage-nickname">- vide -</div>
+          <div class="stage-type-label"></div>
+        </div>
+        <div class="stage-player" data-slot="2">
+          <div class="stage-ready-badge">PAS PRET</div>
+          <div class="stage-character">
+            <span class="char-hat"></span>
+            <div class="char-head"></div>
+            <div class="char-body" style="--player-color: var(--player-green);"></div>
+            <span class="char-acc"></span>
+            <div class="char-shadow"></div>
+          </div>
+          <div class="stage-nickname">- vide -</div>
+          <div class="stage-type-label"></div>
+        </div>
+        <div class="stage-player" data-slot="3">
+          <div class="stage-ready-badge">PAS PRET</div>
+          <div class="stage-character">
+            <span class="char-hat"></span>
+            <div class="char-head"></div>
+            <div class="char-body" style="--player-color: var(--player-orange);"></div>
+            <span class="char-acc"></span>
+            <div class="char-shadow"></div>
+          </div>
+          <div class="stage-nickname">- vide -</div>
+          <div class="stage-type-label"></div>
+        </div>
+      </div>
+
+      <!-- Bottom bar -->
+      <div class="lobby-actions">
+        <button id="btn-customize" class="btn btn-secondary">PERSONNALISER</button>
+        <p class="lobby-player-count" id="lobby-player-count">0/4</p>
+        <button id="btn-ready" class="btn btn-secondary btn-large" style="display:none;">PRET</button>
+        <button id="btn-start-game" class="btn btn-primary btn-large btn-glow" style="display:none;">LANCER</button>
+        <p id="lobby-waiting" class="lobby-waiting"></p>
+      </div>
+
+    </div>
+
+    <!-- Customization Panel (overlay) -->
+    <div class="customize-overlay" id="customize-overlay" style="display:none;">
+      <div class="customize-panel glass-panel">
+        <button id="btn-close-customize" class="customize-close">&times;</button>
+        <h2>PERSONNALISATION</h2>
+
+        <!-- Character Preview -->
+        <div class="customize-preview">
+          <button id="btn-char-prev" class="char-arrow">&lsaquo;</button>
+          <div class="preview-character" id="preview-character">
+            <span class="preview-hat"></span>
+            <div class="preview-head"></div>
+            <div class="preview-body"></div>
+            <span class="preview-acc"></span>
+            <div class="preview-shadow"></div>
+          </div>
+          <button id="btn-char-next" class="char-arrow">&rsaquo;</button>
+        </div>
+        <div class="preview-type-name" id="preview-type-name">Ouvrier</div>
+
+        <!-- Nickname -->
+        <div class="customize-section">
+          <label>Pseudo</label>
+          <input id="input-nickname" class="input" type="text"
+                 maxlength="12" placeholder="Votre pseudo..." autocomplete="off"
+                 style="max-width:240px;">
+        </div>
+
+        <!-- Hat -->
+        <div class="customize-section">
+          <label>Chapeau</label>
+          <div class="cosmetic-picker" id="picker-hat">
+            <button class="cosmetic-btn active" data-value="0">&#10060;</button>
+            <button class="cosmetic-btn" data-value="1">&#9935;&#65039;</button>
+            <button class="cosmetic-btn" data-value="2">&#128081;</button>
+            <button class="cosmetic-btn" data-value="3">&#127881;</button>
+          </div>
+        </div>
+
+        <!-- Accessory -->
+        <div class="customize-section">
+          <label>Accessoire</label>
+          <div class="cosmetic-picker" id="picker-accessory">
+            <button class="cosmetic-btn active" data-value="0">&#10060;</button>
+            <button class="cosmetic-btn" data-value="1">&#128295;</button>
+            <button class="cosmetic-btn" data-value="2">&#128083;</button>
+            <button class="cosmetic-btn" data-value="3">&#129507;</button>
+          </div>
+        </div>
+
+        <button id="btn-validate-customize" class="btn btn-primary" style="width:100%; margin-top:16px;">VALIDER</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       SCREEN: GAME
+       ============================================================ -->
+  <section id="screen-game" class="screen">
+
+    <!-- Phaser renders here -->
+    <div id="game-canvas-container"></div>
+
+    <!-- HUD Overlay -->
+    <div id="game-hud">
+
+      <!-- Top bar -->
+      <div class="hud-top">
+        <div>
+          <div class="hud-timer" id="hud-timer">03:00</div>
+          <div class="hud-timer-label">TEMPS</div>
+        </div>
+
+        <div class="hud-stability">
+          <span class="hud-stability-label">STABILITE</span>
+          <div class="hud-stability-wrap">
+            <div class="hud-stability-track">
+              <div class="hud-stability-fill high" id="hud-stability-fill" style="width:100%"></div>
+            </div>
+            <span class="hud-stability-text" id="hud-stability-text">100%</span>
+          </div>
+        </div>
+
+        <div class="hud-score-section">
+          <div class="hud-score" id="hud-score">0</div>
+          <div class="hud-score-label">SCORE</div>
+        </div>
+      </div>
+
+      <!-- Minimap -->
+      <div class="hud-minimap-wrap">
+        <canvas id="minimap" width="210" height="168"></canvas>
+      </div>
+
+      <!-- Emergency Toasts -->
+      <div class="hud-toasts" id="hud-toasts"></div>
+
+      <!-- Bottom bar -->
+      <div class="hud-bottom">
+        <div class="hud-carried empty" id="hud-carried">Objet : aucun</div>
+        <div class="hud-emergencies" id="hud-emergencies"></div>
+        <div class="hud-controls">ZQSD:Bouger &nbsp; MAJ:Courir &nbsp; F:Dash &nbsp; E:Ramasser &nbsp; ESPACE:Frapper &nbsp; R:Reparer</div>
+      </div>
+
+      <!-- Tutorial "Compris" overlay -->
+      <div class="hud-tutorial-compris" id="hud-tutorial-compris" style="display:none;">
+        <button id="btn-skip-tuto" class="btn btn-secondary btn-small"
+                style="pointer-events:auto; margin-bottom:10px;">PASSER LE TUTO</button>
+        <br>
+        <button id="btn-compris" class="btn btn-primary btn-large btn-glow"
+                style="pointer-events:auto;">COMPRIS !</button>
+        <p id="compris-status" style="margin-top:12px; font-size:14px; color:var(--text-secondary);"></p>
+      </div>
+
+      <!-- Disconnect overlay -->
+      <div class="hud-disconnect" id="hud-disconnect">
+        <h2>DECONNECTE</h2>
+        <p>Retour au menu...</p>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ============================================================
+       SCREEN: END
+       ============================================================ -->
+  <section id="screen-end" class="screen">
+    <div class="end-content">
+
+      <h1 id="end-status" class="end-status"></h1>
+      <p id="end-stability" class="end-stability"></p>
+
+      <!-- Podium -->
+      <div class="podium" id="end-podium">
+        <!-- place-2 (left) -->
+        <div class="glass-panel podium-card place-2" id="podium-2" style="display:none;">
+          <div class="podium-place">#2</div>
+          <div class="podium-avatar"></div>
+          <div class="podium-name"></div>
+          <div class="podium-score"></div>
+        </div>
+        <!-- place-1 (center) -->
+        <div class="glass-panel podium-card place-1" id="podium-1" style="display:none;">
+          <div class="podium-badge">EMPLOYE DU MOIS</div>
+          <div class="podium-place">#1</div>
+          <div class="podium-avatar"></div>
+          <div class="podium-name"></div>
+          <div class="podium-score"></div>
+        </div>
+        <!-- place-3 (right) -->
+        <div class="glass-panel podium-card place-3" id="podium-3" style="display:none;">
+          <div class="podium-place">#3</div>
+          <div class="podium-avatar"></div>
+          <div class="podium-name"></div>
+          <div class="podium-score"></div>
+        </div>
+      </div>
+
+      <!-- Ranking Table -->
+      <div class="end-ranking glass-panel" id="end-ranking">
+        <h3>Classement Final</h3>
+        <!-- Rows injected by JS -->
+      </div>
+
+      <!-- Special Badges -->
+      <div class="end-badges" id="end-badges">
+        <!-- Injected by JS -->
+      </div>
+
+      <button id="btn-restart" class="btn btn-primary btn-large">REJOUER</button>
+      <button id="btn-replay" class="btn btn-secondary btn-small" style="margin-top:8px;">QUITTER</button>
+    </div>
+  </section>
+
+  <!-- Scripts -->
   <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
   <script src="https://unpkg.com/colyseus.js@0.15.25/dist/colyseus.js"></script>
   <script type="module" src="js/main.js"></script>

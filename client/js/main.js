@@ -1,17 +1,32 @@
 // ============================================================
 //  Emergency Crew - Main Entry Point
+//  Phaser for gameplay only, HTML/CSS for all UI screens
 // ============================================================
 
-import { MenuScene } from './scenes/MenuScene.js';
 import { GameScene } from './scenes/GameScene.js';
-import { EndScene }  from './scenes/EndScene.js';
+import { TutorialScene } from './scenes/TutorialScene.js';
+import { ScreenManager } from './screens.js';
 
 const config = {
   type: Phaser.AUTO,
-  width: 1280,
-  height: 720,
+  scale: {
+    mode: Phaser.Scale.FIT,
+    autoCenter: Phaser.Scale.CENTER_BOTH,
+    width: 1920,
+    height: 1080,
+  },
+  parent: 'game-canvas-container',
   backgroundColor: '#0f0f23',
-  scene: [MenuScene, GameScene, EndScene],
+  render: {
+    roundPixels: true,
+    antialias: true,
+  },
+  scene: [TutorialScene, GameScene],
 };
 
-new Phaser.Game(config);
+const game = new Phaser.Game(config);
+
+// Screen manager handles all HTML UI + Colyseus connection
+const screenManager = new ScreenManager();
+screenManager.phaserGame = game;
+window.screenManager = screenManager;

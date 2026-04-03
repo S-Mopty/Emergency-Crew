@@ -1,241 +1,174 @@
 // ============================================================
-//  Emergency Crew - GameScene (Full Gameplay)
-//  Isometric 64x32 rendering with Kenney assets + Colyseus sync
+//  Emergency Crew - GameScene
+//  Isometric rendering + camera follow + minimap
+//  Merged: map 30x24 from version_Arthur + local UI/flow
 // ============================================================
 
 const TILE_W = 64;
 const TILE_H = 32;
-const MAP_W  = 16;
-const MAP_H  = 14;
+const MAP_W  = 30;
+const MAP_H  = 24;
 
-const ASSET_SCALE    = 0.25;     // Kenney 256px -> 64px
-const ASSET_ORIGIN_Y = 0.875;   // Diamond base center in 256x512 image
+const ASSET_SCALE    = 0.3;
+const ASSET_ORIGIN_Y = 0.875;
+const CAMERA_ZOOM    = 1.6;
 
-const PLAYER_COLORS = [0x3498db, 0xe74c3c, 0x2ecc71, 0xf39c12];
-const PLAYER_NAMES  = ['Bleu', 'Rouge', 'Vert', 'Orange'];
+const PLAYER_COLORS     = [0x3498db, 0xe74c3c, 0x2ecc71, 0xf39c12];
+const PLAYER_COLORS_HEX = ['#3498db','#e74c3c','#2ecc71','#f39c12'];
+const PLAYER_NAMES      = ['Bleu', 'Rouge', 'Vert', 'Orange'];
 
-const ITEM_LABELS = {
-  welding_kit: 'Kit Soudure',
-  fuse:        'Fusible',
-  coolant:     'Refrigerant',
-};
+const ITEM_LABELS    = { welding_kit:'Kit Soudure', fuse:'Fusible', coolant:'Refrigerant' };
+const MACHINE_LABELS = { gas_leak:'Vanne Gaz', short_circuit:'Disjoncteur', overheat:'Refroidisseur' };
+const MACHINE_NEEDS  = { gas_leak:'Kit Soudure', short_circuit:'Fusible', overheat:'Refrigerant' };
+const EMERGENCY_LABELS = { gas_leak:'FUITE DE GAZ', short_circuit:'COURT-CIRCUIT', overheat:'SURCHAUFFE' };
 
-const MACHINE_LABELS = {
-  gas_valve:       'Vanne Gaz',
-  circuit_breaker: 'Disjoncteur',
-  cooling_unit:    'Refroidisseur',
-};
-
-const EMERGENCY_LABELS = {
-  gas_leak:       'FUITE DE GAZ',
-  short_circuit:  'COURT-CIRCUIT',
-  overheat:       'SURCHAUFFE',
-};
-
-// 0=void, 1=dirt, 2=planks
+// 30x24 map from version_Arthur
 const MAP_TILES = [
-  [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
-  [0,1,1,1,1,0,0,0,0,0,0,1,1,1,1,0],
-  [0,1,1,1,1,0,0,0,0,0,0,1,1,1,1,0],
-  [0,1,1,1,1,0,0,0,0,0,0,1,1,1,1,0],
-  [0,1,1,1,1,1,0,0,0,0,1,1,1,1,1,0],
-  [0,0,0,0,1,2,2,2,2,2,2,1,0,0,0,0],
-  [0,0,0,0,0,2,2,2,2,2,2,0,0,0,0,0],
-  [0,0,0,0,0,2,2,2,2,2,2,0,0,0,0,0],
-  [0,0,0,0,0,2,2,2,2,2,2,0,0,0,0,0],
-  [0,0,0,0,0,0,1,1,1,1,0,0,0,0,0,0],
-  [0,0,0,0,0,0,1,1,1,1,0,0,0,0,0,0],
-  [0,0,0,0,0,0,1,1,1,1,0,0,0,0,0,0],
-  [0,0,0,0,0,0,1,1,1,1,0,0,0,0,0,0],
-  [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+  [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+  [0,1,1,1,1,1,1,1,0,0,0,0,4,4,4,4,4,4,0,0,0,0,0,1,1,1,1,1,1,0],
+  [0,1,1,1,1,1,1,1,0,0,0,0,4,4,4,4,4,4,0,0,0,0,0,1,1,1,1,1,1,0],
+  [0,1,1,1,1,1,0,0,0,0,0,0,4,4,4,4,4,4,0,0,0,0,0,1,1,1,1,1,1,0],
+  [0,1,1,1,1,1,0,0,0,0,0,0,4,4,4,4,4,4,0,0,0,0,0,1,1,1,1,1,1,0],
+  [0,0,0,0,1,1,0,0,0,0,0,0,0,3,3,3,3,0,0,0,0,0,0,0,0,1,1,0,0,0],
+  [0,0,0,0,3,3,0,0,0,0,0,0,0,3,3,3,3,0,0,0,0,0,0,0,0,3,3,0,0,0],
+  [0,0,0,0,3,3,0,0,0,0,0,0,0,3,3,3,3,0,0,0,0,0,0,0,0,3,3,0,0,0],
+  [0,0,0,0,3,3,3,3,3,3,3,2,2,2,2,2,2,2,2,3,3,3,3,3,3,3,3,0,0,0],
+  [0,0,0,0,0,0,0,0,0,0,3,2,2,2,2,2,2,2,2,3,0,0,0,0,0,0,0,0,0,0],
+  [0,1,1,1,1,1,1,0,0,0,3,2,2,2,2,2,2,2,2,3,0,0,0,1,1,1,1,1,1,0],
+  [0,1,1,1,1,1,1,3,3,3,3,2,2,2,2,2,2,2,2,3,3,3,3,1,1,1,1,1,1,0],
+  [0,1,1,1,1,1,1,3,3,3,3,2,2,2,2,2,2,2,2,3,3,3,3,1,1,1,1,1,1,0],
+  [0,1,1,1,1,1,0,0,0,0,3,2,2,2,2,2,2,2,2,3,0,0,0,1,1,1,1,1,1,0],
+  [0,1,1,1,1,1,0,0,0,0,3,2,2,2,2,2,2,2,2,3,0,0,0,0,1,1,1,1,0,0],
+  [0,0,0,1,1,0,0,0,0,0,3,2,2,2,2,2,2,2,2,3,0,0,0,0,1,1,1,1,0,0],
+  [0,0,0,3,3,0,0,0,0,0,0,0,0,3,3,3,3,0,0,0,0,0,0,0,0,3,3,0,0,0],
+  [0,0,0,3,3,0,0,0,0,0,0,0,0,3,3,3,3,0,0,0,0,0,0,0,0,3,3,0,0,0],
+  [0,1,1,1,1,1,1,1,0,0,5,5,5,5,5,5,5,5,5,5,0,0,0,1,1,1,1,1,1,0],
+  [0,1,1,1,1,1,1,1,0,0,5,5,5,5,5,5,5,5,5,5,0,0,0,1,1,1,1,1,1,0],
+  [0,1,1,1,1,1,0,0,0,0,5,5,5,5,5,5,5,5,5,5,0,0,0,1,1,1,1,0,0,0],
+  [0,1,1,1,1,1,0,0,0,0,5,5,5,5,5,5,5,5,5,5,0,0,0,1,1,1,1,0,0,0],
+  [0,1,1,1,1,1,0,0,0,0,5,5,5,5,5,5,5,5,5,5,0,0,0,1,1,1,1,0,0,0],
+  [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
 ];
 
-const TILE_KEYS = { 0: null, 1: 'tile_dirt', 2: 'tile_planks' };
+// Tile rendering: map tile type → asset key
+const TILE_KEYS = { 0:null, 1:'tile_dirt', 2:'tile_planks', 3:'tile_dirt', 4:'tile_planks', 5:'tile_planks' };
+// Tint per tile type for visual variety
+const TILE_TINTS = { 1:0xffffff, 2:0xffffff, 3:0xddddee, 4:0xeeeeff, 5:0xffdddd };
 
-// Room label positions (tile coords -> labels)
+// 9 room labels
 const ROOM_LABELS = [
-  { text: 'STOCKAGE',        col: 2.5, row: 2,   color: '#ffd93d' },
-  { text: 'REACTEUR',        col: 12.5, row: 2,  color: '#ff6b6b' },
-  { text: 'HUB CENTRAL',     col: 7.5, row: 6.5, color: '#74b9ff' },
-  { text: 'SALLE ELECTRIQUE', col: 7.5, row: 11,  color: '#a29bfe' },
+  { text:'STOCKAGE',     col:4,    row:2.5, color:'#ffd93d' },
+  { text:'COMMANDEMENT', col:14.5, row:2.5, color:'#74b9ff' },
+  { text:'REACTEUR',     col:26,   row:2.5, color:'#ff6b6b' },
+  { text:'HUB CENTRAL',  col:14.5, row:12,  color:'#74b9ff' },
+  { text:'INFIRMERIE',   col:3.5,  row:12,  color:'#a29bfe' },
+  { text:'ELECTRIQUE',   col:26,   row:12,  color:'#fdcb6e' },
+  { text:'ARMURERIE',    col:3.5,  row:20,  color:'#e17055' },
+  { text:'MACHINES',     col:14.5, row:20,  color:'#ff7675' },
+  { text:'SURVIE',       col:25.5, row:20,  color:'#00cec9' },
 ];
 
-// Static decorations
 const DECORATIONS = [
-  // Stockage area
-  { key: 'deco_corn',   col: 1,  row: 1 },
-  { key: 'deco_corn',   col: 2,  row: 1 },
-  { key: 'deco_corn',   col: 1,  row: 3 },
-  // Reactor area
-  { key: 'deco_fence',  col: 11, row: 1 },
-  { key: 'deco_fence',  col: 14, row: 1 },
-  // Hub borders
-  { key: 'deco_fence',  col: 5,  row: 5 },
-  { key: 'deco_fence',  col: 10, row: 5 },
-  // Electrical room
-  { key: 'deco_ladder', col: 6,  row: 10 },
-  { key: 'deco_wall',   col: 9,  row: 10 },
-  // Misc
-  { key: 'deco_hay',    col: 4,  row: 4 },
-  { key: 'deco_hay',    col: 10, row: 4 },
+  { key:'deco_corn',  col:1,  row:1 },  { key:'deco_corn',  col:7,  row:1 },
+  { key:'deco_fence', col:12, row:1 },  { key:'deco_fence', col:17, row:1 },
+  { key:'deco_fence', col:23, row:1 },  { key:'deco_fence', col:28, row:1 },
+  { key:'deco_hay',   col:1,  row:4 },  { key:'deco_hay',   col:28, row:4 },
+  { key:'deco_fence', col:4,  row:8 },  { key:'deco_fence', col:25, row:8 },
+  { key:'deco_ladder',col:7,  row:11 }, { key:'deco_wall',  col:22, row:11 },
+  { key:'deco_hay',   col:1,  row:14 }, { key:'deco_hay',   col:28, row:14 },
+  { key:'deco_fence', col:4,  row:16 }, { key:'deco_fence', col:25, row:16 },
+  { key:'deco_corn',  col:1,  row:18 }, { key:'deco_corn',  col:7,  row:18 },
+  { key:'deco_ladder',col:10, row:18 }, { key:'deco_wall',  col:19, row:18 },
+  { key:'deco_hay',   col:23, row:18 }, { key:'deco_hay',   col:28, row:22 },
 ];
 
-// Machine texture mappings
-const MACHINE_TEXTURES = {
-  gas_valve:       'machine_gas_valve',
-  circuit_breaker: 'machine_circuit_breaker',
-  cooling_unit:    'machine_cooling_unit',
-};
+const MACHINE_TEXTURES = { gas_leak:'machine_gas_valve', short_circuit:'machine_circuit_breaker', overheat:'machine_cooling_unit' };
+const ITEM_TEXTURES    = { welding_kit:'item_welding_kit', fuse:'item_fuse', coolant:'item_coolant' };
 
-// Item texture mappings
-const ITEM_TEXTURES = {
-  welding_kit: 'item_welding_kit',
-  fuse:        'item_fuse',
-  coolant:     'item_coolant',
-};
-
-// ----------------------------------------------------------
-//  Iso helpers
-// ----------------------------------------------------------
 function worldToScreen(wx, wy) {
-  return {
-    x: (wx - wy) * (TILE_W / 2),
-    y: (wx + wy) * (TILE_H / 2),
-  };
+  return { x: (wx - wy) * (TILE_W / 2), y: (wx + wy) * (TILE_H / 2) };
 }
+
+// Minimap colors per tile type
+const MM_COLORS = { 0:'#0f0f23', 1:'#2a2a4a', 2:'#3a3a6a', 3:'#252545', 4:'#35355a', 5:'#4a2a2a' };
 
 // ============================================================
 export class GameScene extends Phaser.Scene {
-  constructor() {
-    super('GameScene');
-  }
+  constructor() { super('GameScene'); }
 
   init(data) {
     this.room = data.room || null;
-    this.playerSprites  = {};
-    this.machineSprites = {};
-    this.itemSprites    = {};
-    this.hudElements    = {};
-    this.emergencyOverlays = {};
+    this.playerSprites = {}; this.machineSprites = {}; this.itemSprites = {};
     this.localSessionId = this.room ? this.room.sessionId : null;
+    this._minimapDrawn = false;
   }
 
-  // ----------------------------------------------------------
-  //  PRELOAD
-  // ----------------------------------------------------------
   preload() {
     const base = '/assets/Isometric/';
-
-    // Floor tiles
-    this.load.image('tile_dirt',   base + 'dirt_S.png');
-    this.load.image('tile_planks', base + 'planks_S.png');
-
-    // Decorations
-    this.load.image('deco_fence',     base + 'fenceHigh_S.png');
-    this.load.image('deco_corn',      base + 'corn_S.png');
-    this.load.image('deco_hay',       base + 'hayBales_S.png');
-    this.load.image('deco_hayStack',  base + 'hayBalesStacked_S.png');
-    this.load.image('deco_ladder',    base + 'ladderStand_S.png');
-    this.load.image('deco_wall',      base + 'woodWall_S.png');
-
-    // Machine assets
-    this.load.image('machine_gas_valve',       base + 'woodWallWindow_S.png');
-    this.load.image('machine_circuit_breaker',  base + 'woodWallDoorClosed_S.png');
-    this.load.image('machine_cooling_unit',     base + 'chimneyBase_S.png');
-
-    // Item assets
-    this.load.image('item_welding_kit', base + 'sacksCrate_S.png');
-    this.load.image('item_fuse',        base + 'sack_S.png');
-    this.load.image('item_coolant',     base + 'hayBalesStacked_S.png');
+    this.load.image('tile_dirt',   base+'dirt_S.png');
+    this.load.image('tile_planks', base+'planks_S.png');
+    this.load.image('deco_fence',  base+'fenceHigh_S.png');
+    this.load.image('deco_corn',   base+'corn_S.png');
+    this.load.image('deco_hay',    base+'hayBales_S.png');
+    this.load.image('deco_ladder', base+'ladderStand_S.png');
+    this.load.image('deco_wall',   base+'woodWall_S.png');
+    this.load.image('machine_gas_valve',      base+'woodWallWindow_S.png');
+    this.load.image('machine_circuit_breaker', base+'woodWallDoorClosed_S.png');
+    this.load.image('machine_cooling_unit',    base+'chimneyBase_S.png');
+    this.load.image('item_welding_kit', base+'sacksCrate_S.png');
+    this.load.image('item_fuse',        base+'sack_S.png');
+    this.load.image('item_coolant',     base+'hayBalesStacked_S.png');
   }
 
-  // ----------------------------------------------------------
-  //  CREATE
-  // ----------------------------------------------------------
   create() {
-    // Camera offset to center the map
-    this.camOX = this.cameras.main.width / 2 - (MAP_W - MAP_H) * (TILE_W / 4);
-    this.camOY = 60;
+    // World offset
+    this.camOX = (MAP_W + MAP_H) * (TILE_W / 4);
+    this.camOY = 80;
 
-    // Generate player textures
     this._genPlayerTextures();
-
-    // Draw world
     this._drawFloor();
     this._drawDecorations();
     this._drawRoomLabels();
-
-    // Create HUD
-    this._createHUD();
-
-    // Setup input
     this._setupInput();
-
-    // Create emergency effect layers
     this._createEffectLayers();
+    this._drawMinimapBase();
 
-    // Setup Colyseus listeners
-    if (this.room) {
-      this._setupRoomListeners();
-    }
+    // Camera follow setup
+    this._cameraTarget = this.add.rectangle(0, 0, 1, 1, 0x000000, 0);
+    this.cameras.main.startFollow(this._cameraTarget, true, 0.08, 0.08);
+    this.cameras.main.setZoom(CAMERA_ZOOM);
+
+    if (this.room) this._setupRoomListeners();
   }
 
   // ----------------------------------------------------------
-  //  Player Texture Generation
+  //  Player Textures (detailed worker sprites)
   // ----------------------------------------------------------
   _genPlayerTextures() {
     PLAYER_COLORS.forEach((color, i) => {
       const key = `player_${i}`;
       if (this.textures.exists(key)) return;
-
       const g = this.make.graphics({ add: false });
-      const w = 32, h = 48;
-
+      const w = 48, h = 72;
       // Shadow
-      g.fillStyle(0x000000, 0.25);
-      g.fillEllipse(w / 2, h - 4, 26, 12);
-
-      // Body (iso diamond)
-      g.fillStyle(color);
-      g.beginPath();
-      g.moveTo(w / 2, 12);
-      g.lineTo(w - 2, h * 0.45);
-      g.lineTo(w / 2, h - 6);
-      g.lineTo(2, h * 0.45);
-      g.closePath();
-      g.fillPath();
-
-      // Body outline
-      g.lineStyle(2, 0xffffff, 0.4);
-      g.strokePath();
-
-      // Head
-      g.fillStyle(0xffeaa7);
-      g.fillCircle(w / 2, 12, 7);
-
-      // Eyes
+      g.fillStyle(0x000000, 0.3); g.fillEllipse(w/2, h-4, 32, 14);
+      // Boots
       g.fillStyle(0x2d3436);
-      g.fillCircle(w / 2 - 2, 11, 1.3);
-      g.fillCircle(w / 2 + 2, 11, 1.3);
-
-      g.generateTexture(key, w, h);
-      g.destroy();
+      g.fillRoundedRect(w/2-10, h-16, 8, 12, 2); g.fillRoundedRect(w/2+2, h-16, 8, 12, 2);
+      // Legs
+      g.fillStyle(0x636e72); g.fillRect(w/2-8, h-28, 6, 14); g.fillRect(w/2+2, h-28, 6, 14);
+      // Body
+      g.fillStyle(color);
+      g.beginPath(); g.moveTo(w/2,18); g.lineTo(w-6,h*0.42); g.lineTo(w/2,h-26); g.lineTo(6,h*0.42); g.closePath(); g.fillPath();
+      g.lineStyle(2, 0xffffff, 0.3); g.strokePath();
+      // Belt + Head + Hat + Eyes + Tool
+      g.fillStyle(0x2d3436); g.fillRect(w/2-14, h-30, 28, 4);
+      g.fillStyle(0xffeaa7); g.fillCircle(w/2, 16, 9);
+      g.fillStyle(0xf1c40f); g.fillRoundedRect(w/2-11, 5, 22, 10, 3); g.fillRect(w/2-13, 12, 26, 3);
+      g.fillStyle(0x2d3436); g.fillCircle(w/2-3, 16, 1.5); g.fillCircle(w/2+3, 16, 1.5);
+      g.fillStyle(0x95a5a6); g.fillRect(w-10, h*0.42, 3, 12);
+      g.generateTexture(key, w, h); g.destroy();
     });
-
-    // Stunned star texture (small diamonds as stars)
-    if (!this.textures.exists('fx_stars')) {
-      const g = this.make.graphics({ add: false });
-      g.fillStyle(0xffd93d);
-      for (let i = 0; i < 3; i++) {
-        const cx = 8 + i * 12;
-        g.beginPath();
-        g.moveTo(cx, 0); g.lineTo(cx + 4, 6);
-        g.lineTo(cx, 12); g.lineTo(cx - 4, 6);
-        g.closePath(); g.fillPath();
-      }
-      g.generateTexture('fx_stars', 40, 12);
-      g.destroy();
-    }
   }
 
   // ----------------------------------------------------------
@@ -243,212 +176,75 @@ export class GameScene extends Phaser.Scene {
   // ----------------------------------------------------------
   _placeAsset(key, col, row, depthVal) {
     const { x, y } = worldToScreen(col, row);
-    const sx = x + this.camOX;
-    const sy = y + this.camOY;
+    const sx = x + this.camOX, sy = y + this.camOY;
     const sprite = this.add.image(sx, sy, key);
-    sprite.setScale(ASSET_SCALE);
-    sprite.setOrigin(0.5, ASSET_ORIGIN_Y);
-    sprite.setDepth(depthVal !== undefined ? depthVal : sy);
+    sprite.setScale(ASSET_SCALE).setOrigin(0.5, ASSET_ORIGIN_Y).setDepth(depthVal ?? sy);
     return sprite;
   }
 
   _drawFloor() {
-    for (let r = 0; r < MAP_H; r++) {
+    for (let r = 0; r < MAP_H; r++)
       for (let c = 0; c < MAP_W; c++) {
-        const tileType = MAP_TILES[r][c];
-        const key = TILE_KEYS[tileType];
-        if (key) {
-          this._placeAsset(key, c, r, -1); // Floor always at bottom depth
-        }
+        const t = MAP_TILES[r][c]; if (!t) continue;
+        const key = TILE_KEYS[t]; if (!key) continue;
+        const s = this._placeAsset(key, c, r, -1);
+        const tint = TILE_TINTS[t]; if (tint && tint !== 0xffffff) s.setTint(tint);
       }
-    }
   }
 
   _drawDecorations() {
-    for (const deco of DECORATIONS) {
-      const { x, y } = worldToScreen(deco.col, deco.row);
-      const sy = y + this.camOY;
-      this._placeAsset(deco.key, deco.col, deco.row, sy);
+    for (const d of DECORATIONS) {
+      const sy = worldToScreen(d.col, d.row).y + this.camOY;
+      this._placeAsset(d.key, d.col, d.row, sy);
     }
   }
 
   _drawRoomLabels() {
-    for (const label of ROOM_LABELS) {
-      const { x, y } = worldToScreen(label.col, label.row);
-      const sx = x + this.camOX;
-      const sy = y + this.camOY;
-      this.add.text(sx, sy - 10, label.text, {
-        fontSize: '11px', fontFamily: 'Courier New', fontStyle: 'bold',
-        color: label.color,
-        stroke: '#000', strokeThickness: 3,
-        align: 'center',
+    for (const l of ROOM_LABELS) {
+      const { x, y } = worldToScreen(l.col, l.row);
+      this.add.text(x + this.camOX, y + this.camOY - 10, l.text, {
+        fontSize: '13px', fontFamily: 'Inter, sans-serif', fontStyle: 'bold',
+        color: l.color, stroke: '#000', strokeThickness: 4,
       }).setOrigin(0.5).setDepth(0).setAlpha(0.7);
     }
   }
 
   // ----------------------------------------------------------
-  //  HUD (fixed camera overlay)
-  // ----------------------------------------------------------
-  _createHUD() {
-    const hud = this.add.container(0, 0).setDepth(10000).setScrollFactor(0);
-
-    // Semi-transparent top bar
-    const topBar = this.add.graphics();
-    topBar.fillStyle(0x000000, 0.5);
-    topBar.fillRect(0, 0, 1280, 50);
-    hud.add(topBar);
-
-    // Timer (top-left)
-    this.hudElements.timer = this.add.text(20, 14, '03:00', {
-      fontSize: '24px', fontFamily: 'Courier New', fontStyle: 'bold',
-      color: '#fff', stroke: '#000', strokeThickness: 2,
-    });
-    hud.add(this.hudElements.timer);
-
-    const timerLabel = this.add.text(20, 38, 'TEMPS', {
-      fontSize: '10px', fontFamily: 'Courier New', color: '#888',
-    });
-    hud.add(timerLabel);
-
-    // Stability gauge (top-center)
-    const gaugeX = 490;
-    const gaugeLabel = this.add.text(640, 6, 'STABILITE', {
-      fontSize: '10px', fontFamily: 'Courier New', color: '#888',
-    }).setOrigin(0.5, 0);
-    hud.add(gaugeLabel);
-
-    this.hudElements.stabilityBg = this.add.graphics();
-    this.hudElements.stabilityBg.fillStyle(0x333333);
-    this.hudElements.stabilityBg.fillRoundedRect(gaugeX, 20, 300, 18, 4);
-    hud.add(this.hudElements.stabilityBg);
-
-    this.hudElements.stabilityBar = this.add.graphics();
-    hud.add(this.hudElements.stabilityBar);
-
-    this.hudElements.stabilityText = this.add.text(640, 29, '100%', {
-      fontSize: '12px', fontFamily: 'Courier New', fontStyle: 'bold',
-      color: '#fff', stroke: '#000', strokeThickness: 2,
-    }).setOrigin(0.5, 0.5);
-    hud.add(this.hudElements.stabilityText);
-
-    // Score (top-right)
-    this.hudElements.score = this.add.text(1260, 14, '0', {
-      fontSize: '24px', fontFamily: 'Courier New', fontStyle: 'bold',
-      color: '#ffd93d', stroke: '#000', strokeThickness: 2,
-    }).setOrigin(1, 0);
-    hud.add(this.hudElements.score);
-
-    const scoreLabel = this.add.text(1260, 38, 'SCORE', {
-      fontSize: '10px', fontFamily: 'Courier New', color: '#888',
-    }).setOrigin(1, 0);
-    hud.add(scoreLabel);
-
-    // Bottom bar background
-    const bottomBar = this.add.graphics();
-    bottomBar.fillStyle(0x000000, 0.5);
-    bottomBar.fillRect(0, 670, 1280, 50);
-    hud.add(bottomBar);
-
-    // Carried item (bottom-left)
-    this.hudElements.carriedItem = this.add.text(20, 688, 'Objet: aucun', {
-      fontSize: '14px', fontFamily: 'Courier New',
-      color: '#ffd93d', stroke: '#000', strokeThickness: 2,
-    });
-    hud.add(this.hudElements.carriedItem);
-
-    // Active emergencies (bottom-center)
-    this.hudElements.emergencies = this.add.text(640, 688, '', {
-      fontSize: '13px', fontFamily: 'Courier New', fontStyle: 'bold',
-      color: '#ff6b6b', stroke: '#000', strokeThickness: 2,
-      align: 'center',
-    }).setOrigin(0.5, 0);
-    hud.add(this.hudElements.emergencies);
-
-    // Controls reminder (bottom-right)
-    const controls = this.add.text(1260, 682, 'WASD:Bouger  E:Ramasser  ESPACE:Frapper  MAJ:Dash  R:Reparer', {
-      fontSize: '10px', fontFamily: 'Courier New', color: '#666',
-    }).setOrigin(1, 0);
-    hud.add(controls);
-
-    // Waiting overlay (shown during "waiting" phase)
-    this.hudElements.waitOverlay = this.add.graphics();
-    this.hudElements.waitOverlay.fillStyle(0x000000, 0.6);
-    this.hudElements.waitOverlay.fillRect(0, 0, 1280, 720);
-    hud.add(this.hudElements.waitOverlay);
-
-    this.hudElements.waitText = this.add.text(640, 360, 'En attente du lancement...', {
-      fontSize: '28px', fontFamily: 'Courier New', fontStyle: 'bold',
-      color: '#ffd93d', stroke: '#000', strokeThickness: 4,
-    }).setOrigin(0.5);
-    hud.add(this.hudElements.waitText);
-
-    this.hudElements.waitOverlay.setVisible(false);
-    this.hudElements.waitText.setVisible(false);
-
-    // Disconnect overlay
-    this.hudElements.disconnectOverlay = this.add.graphics();
-    this.hudElements.disconnectOverlay.fillStyle(0x000000, 0.8);
-    this.hudElements.disconnectOverlay.fillRect(0, 0, 1280, 720);
-    this.hudElements.disconnectOverlay.setVisible(false);
-    hud.add(this.hudElements.disconnectOverlay);
-
-    this.hudElements.disconnectText = this.add.text(640, 340, 'DECONNECTE', {
-      fontSize: '32px', fontFamily: 'Courier New', fontStyle: 'bold',
-      color: '#ff6b6b', stroke: '#000', strokeThickness: 4,
-    }).setOrigin(0.5);
-    this.hudElements.disconnectText.setVisible(false);
-    hud.add(this.hudElements.disconnectText);
-
-    this.hudElements.disconnectSub = this.add.text(640, 390, 'Retour au menu...', {
-      fontSize: '16px', fontFamily: 'Courier New', color: '#aaa',
-    }).setOrigin(0.5);
-    this.hudElements.disconnectSub.setVisible(false);
-    hud.add(this.hudElements.disconnectSub);
-  }
-
-  // ----------------------------------------------------------
-  //  Emergency Effect Layers
+  //  Effects
   // ----------------------------------------------------------
   _createEffectLayers() {
-    // Gas leak overlay (yellow-green tint)
+    const W = 3000, H = 2000; // large enough for scrolled view
     this.gasOverlay = this.add.graphics().setDepth(9000).setAlpha(0);
-    this.gasOverlay.fillStyle(0x88cc00, 0.2);
-    this.gasOverlay.fillRect(0, 0, 1280, 720);
-    this.gasOverlay.setScrollFactor(0);
+    this.gasOverlay.fillStyle(0x88cc00, 0.2); this.gasOverlay.fillRect(-W/2,-H/2,W*2,H*2);
 
-    // Short circuit overlay (dark fog)
     this.circuitOverlay = this.add.graphics().setDepth(9001).setAlpha(0);
-    this.circuitOverlay.fillStyle(0x000000, 0.7);
-    this.circuitOverlay.fillRect(0, 0, 1280, 720);
-    // Cut a circle around the player (simulated in update)
-    this.circuitOverlay.setScrollFactor(0);
+    this.circuitOverlay.fillStyle(0x000000, 0.75); this.circuitOverlay.fillRect(-W/2,-H/2,W*2,H*2);
 
-    // Overheat border overlay
-    this.overheatBorder = this.add.graphics().setDepth(9002).setAlpha(0);
-    this.overheatBorder.lineStyle(8, 0xff0000, 0.8);
-    this.overheatBorder.strokeRect(4, 4, 1272, 712);
-    this.overheatBorder.setScrollFactor(0);
+    this.overheatBorder = this.add.graphics().setDepth(9002).setAlpha(0).setScrollFactor(0);
+    this.overheatBorder.lineStyle(10, 0xff0000, 0.8); this.overheatBorder.strokeRect(5,5,1910,1070);
 
-    this.overheatText = this.add.text(640, 80, '', {
-      fontSize: '20px', fontFamily: 'Courier New', fontStyle: 'bold',
-      color: '#ff0000', stroke: '#000', strokeThickness: 3,
+    this.overheatText = this.add.text(960, 100, '', {
+      fontSize:'28px', fontFamily:'Inter, sans-serif', fontStyle:'bold',
+      color:'#ff0000', stroke:'#000', strokeThickness:4,
     }).setOrigin(0.5).setDepth(9003).setAlpha(0).setScrollFactor(0);
   }
 
   // ----------------------------------------------------------
-  //  Input Setup
+  //  Input (ZQSD + Arrows, F=dash, Shift=sprint)
   // ----------------------------------------------------------
   _setupInput() {
     this.cursors = this.input.keyboard.createCursorKeys();
-    this.wasd = this.input.keyboard.addKeys({
-      up:    Phaser.Input.Keyboard.KeyCodes.W,
-      down:  Phaser.Input.Keyboard.KeyCodes.S,
-      left:  Phaser.Input.Keyboard.KeyCodes.A,
-      right: Phaser.Input.Keyboard.KeyCodes.D,
+    this.moveKeys = this.input.keyboard.addKeys({
+      up: Phaser.Input.Keyboard.KeyCodes.W, down: Phaser.Input.Keyboard.KeyCodes.S,
+      left: Phaser.Input.Keyboard.KeyCodes.A, right: Phaser.Input.Keyboard.KeyCodes.D,
     });
+    this.moveKeysAlt = this.input.keyboard.addKeys({
+      up: Phaser.Input.Keyboard.KeyCodes.Z, left: Phaser.Input.Keyboard.KeyCodes.Q,
+    });
+    this.dashKey   = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.F);
+    this.sprintKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SHIFT);
     this.pickupKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.E);
     this.attackKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
-    this.dashKey   = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SHIFT);
     this.repairKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.R);
   }
 
@@ -457,567 +253,425 @@ export class GameScene extends Phaser.Scene {
   // ----------------------------------------------------------
   _setupRoomListeners() {
     const room = this.room;
+    room.state.players.onAdd((p, sid) => this._addPlayer(p, sid));
+    room.state.players.onRemove((_, sid) => this._removePlayer(sid));
+    room.state.machines.onAdd((m, mid) => this._addMachine(m, mid));
+    room.state.machines.onRemove((_, mid) => this._removeMachine(mid));
+    room.state.items.onAdd((it, iid) => this._addItem(it, iid));
+    room.state.items.onRemove((_, iid) => this._removeItem(iid));
 
-    // Players
-    room.state.players.onAdd((player, sessionId) => {
-      this._addPlayer(player, sessionId);
-    });
-    room.state.players.onRemove((_player, sessionId) => {
-      this._removePlayer(sessionId);
-    });
-
-    // Machines
-    room.state.machines.onAdd((machine, machineId) => {
-      this._addMachine(machine, machineId);
-    });
-    room.state.machines.onRemove((_machine, machineId) => {
-      this._removeMachine(machineId);
-    });
-
-    // Items
-    room.state.items.onAdd((item, itemId) => {
-      this._addItem(item, itemId);
-    });
-    room.state.items.onRemove((_item, itemId) => {
-      this._removeItem(itemId);
-    });
-
-    // Phase changes
-    room.state.listen('phase', (value) => {
-      if (value === 'waiting') {
-        this.hudElements.waitOverlay.setVisible(true);
-        this.hudElements.waitText.setVisible(true);
-      } else {
-        this.hudElements.waitOverlay.setVisible(false);
-        this.hudElements.waitText.setVisible(false);
-      }
-    });
-
-    // Game over message
     room.onMessage('game_over', (data) => {
-      this.scene.start('EndScene', {
-        room: this.room,
-        reason: data.reason,
-        winner: data.winner,
-        scores: data.scores,
-        stability: room.state.stability,
+      if (window.screenManager) window.screenManager.showEndScreen({
+        reason:data.reason, winner:data.winner, scores:data.scores, stability:room.state.stability,
       });
     });
-
-    // Emergency spawn notification
     room.onMessage('emergency_spawn', (data) => {
-      this._flashEmergencyAlert(data.type);
+      if (window.screenManager) window.screenManager.showEmergencyToast(data.type);
     });
-
-    // Repair complete notification
-    room.onMessage('repair_complete', (data) => {
-      this._showRepairCompleteEffect(data);
-    });
-
-    // Handle disconnection
-    room.onLeave((code) => {
-      console.warn('Disconnected, code:', code);
-      this.hudElements.disconnectOverlay.setVisible(true);
-      this.hudElements.disconnectText.setVisible(true);
-      this.hudElements.disconnectSub.setVisible(true);
-      this.room = null;
-      this.time.delayedCall(2500, () => {
-        this.scene.start('MenuScene');
-      });
-    });
+    room.onMessage('repair_complete', (data) => this._showRepairEffect(data));
+    room.onLeave(() => { this.room = null; if (window.screenManager) window.screenManager.showDisconnect(); });
   }
 
   // ----------------------------------------------------------
-  //  Player Sprites
+  //  Players
   // ----------------------------------------------------------
-  _addPlayer(player, sessionId) {
-    const isLocal = sessionId === this.localSessionId;
-    const colorIdx = player.color !== undefined ? player.color : 0;
-
-    const sprite = this.add.image(0, 0, `player_${colorIdx}`)
-      .setOrigin(0.5, 0.9);
-
-    const label = this.add.text(0, 0,
-      isLocal ? 'VOUS' : PLAYER_NAMES[colorIdx] || '?',
-      {
-        fontSize: '11px', fontFamily: 'Courier New', fontStyle: 'bold',
-        color: isLocal ? '#2ecc71' : '#ffffff',
-        stroke: '#000', strokeThickness: 2,
-      }
-    ).setOrigin(0.5, 1);
-
-    const carryIcon = this.add.text(0, 0, '', {
-      fontSize: '10px', fontFamily: 'Courier New',
-      color: '#f1c40f', stroke: '#000', strokeThickness: 2,
+  _addPlayer(player, sid) {
+    const isLocal = sid === this.localSessionId;
+    const ci = player.color ?? 0;
+    const sprite = this.add.image(0, 0, `player_${ci}`).setOrigin(0.5, 0.9);
+    const name = isLocal ? 'VOUS' : (player.nickname || PLAYER_NAMES[ci]);
+    const label = this.add.text(0, 0, name, {
+      fontSize:'14px', fontFamily:'Inter, sans-serif', fontStyle:'bold',
+      color: isLocal ? '#2ecc71' : '#fff', stroke:'#000', strokeThickness:3,
     }).setOrigin(0.5, 1);
+    if (!isLocal) player.listen('nickname', v => label.setText(v || PLAYER_NAMES[ci]));
 
-    // Repair progress bar (hidden by default)
+    const HAT_I = ['','\u26D1\uFE0F','\uD83D\uDC51','\uD83C\uDF89'];
+    const ACC_I = ['','\uD83D\uDD27','\uD83D\uDC53','\uD83E\uDDE3'];
+    const hatIcon = this.add.text(0,0, HAT_I[player.hat]||'', {fontSize:'16px'}).setOrigin(0.5,1);
+    const accIcon = this.add.text(0,0, ACC_I[player.accessory]||'', {fontSize:'14px'}).setOrigin(0.5,1);
+    player.listen('hat', v => hatIcon.setText(HAT_I[v]||''));
+    player.listen('accessory', v => accIcon.setText(ACC_I[v]||''));
+
+    const carryIcon = this.add.text(0,0,'', {
+      fontSize:'13px', fontFamily:'Inter, sans-serif', fontStyle:'bold',
+      color:'#ffd93d', stroke:'#000', strokeThickness:3,
+      backgroundColor:'#000000aa', padding:{x:6,y:3},
+    }).setOrigin(0.5,1);
     const repairBarBg = this.add.graphics().setVisible(false);
     const repairBarFill = this.add.graphics().setVisible(false);
+    const stars = this.add.text(0,0,'* * *', {
+      fontSize:'14px', fontFamily:'Courier New', fontStyle:'bold',
+      color:'#ffd93d', stroke:'#000', strokeThickness:3,
+    }).setOrigin(0.5,1).setVisible(false);
 
-    // Stars effect for stunned state
-    const stars = this.add.text(0, 0, '* * *', {
-      fontSize: '12px', fontFamily: 'Courier New', fontStyle: 'bold',
-      color: '#ffd93d', stroke: '#000', strokeThickness: 2,
-    }).setOrigin(0.5, 1).setVisible(false);
-
-    this.playerSprites[sessionId] = {
-      sprite, label, carryIcon, player, stars,
+    this.playerSprites[sid] = {
+      sprite, label, carryIcon, player, stars, hatIcon, accIcon,
       repairBarBg, repairBarFill,
-      stateTimer: 0,
+      lerpX: player.x, lerpY: player.y, // for smooth rendering
     };
   }
 
-  _removePlayer(sessionId) {
-    const d = this.playerSprites[sessionId];
-    if (!d) return;
-    d.sprite.destroy();
-    d.label.destroy();
-    d.carryIcon.destroy();
-    d.stars.destroy();
-    d.repairBarBg.destroy();
-    d.repairBarFill.destroy();
-    delete this.playerSprites[sessionId];
+  _removePlayer(sid) {
+    const d = this.playerSprites[sid]; if (!d) return;
+    d.sprite.destroy(); d.label.destroy(); d.carryIcon.destroy();
+    d.stars.destroy(); d.repairBarBg.destroy(); d.repairBarFill.destroy();
+    if (d.hatIcon) d.hatIcon.destroy();
+    if (d.accIcon) d.accIcon.destroy();
+    delete this.playerSprites[sid];
   }
 
   // ----------------------------------------------------------
-  //  Machine Sprites
+  //  Machines
   // ----------------------------------------------------------
-  _addMachine(machine, machineId) {
+  _addMachine(machine, mid) {
     const texKey = MACHINE_TEXTURES[machine.machineType] || 'machine_gas_valve';
     const { x, y } = worldToScreen(machine.x, machine.y);
-    const sx = x + this.camOX;
-    const sy = y + this.camOY;
-
-    const sprite = this.add.image(sx, sy, texKey);
-    sprite.setScale(ASSET_SCALE * 1.2); // Machines slightly larger
-    sprite.setOrigin(0.5, ASSET_ORIGIN_Y);
-    sprite.setDepth(sy);
-
-    // Status glow
-    const glow = this.add.graphics();
-    glow.setDepth(sy - 0.5);
-
-    // Label
-    const nameLabel = this.add.text(sx, sy - 60, MACHINE_LABELS[machine.machineType] || '', {
-      fontSize: '10px', fontFamily: 'Courier New', fontStyle: 'bold',
-      color: '#fff', stroke: '#000', strokeThickness: 2,
-    }).setOrigin(0.5).setDepth(sy + 0.1);
-
-    // Status text
-    const statusText = this.add.text(sx, sy - 48, '', {
-      fontSize: '9px', fontFamily: 'Courier New',
-      color: '#2ecc71', stroke: '#000', strokeThickness: 2,
-    }).setOrigin(0.5).setDepth(sy + 0.2);
-
-    // Repair progress bar
-    const repairBarBg = this.add.graphics().setDepth(sy + 0.3).setVisible(false);
-    const repairBarFill = this.add.graphics().setDepth(sy + 0.4).setVisible(false);
-
-    this.machineSprites[machineId] = {
-      sprite, glow, nameLabel, statusText, machine,
-      repairBarBg, repairBarFill, sx, sy,
-    };
+    const sx = x + this.camOX, sy = y + this.camOY;
+    const sprite = this.add.image(sx, sy, texKey).setScale(ASSET_SCALE*1.3).setOrigin(0.5,ASSET_ORIGIN_Y).setDepth(sy);
+    const glow = this.add.graphics().setDepth(sy-0.5);
+    const nameLabel = this.add.text(sx, sy-75, MACHINE_LABELS[machine.machineType]||'', {
+      fontSize:'13px', fontFamily:'Inter, sans-serif', fontStyle:'bold', color:'#fff', stroke:'#000', strokeThickness:3,
+    }).setOrigin(0.5).setDepth(sy+0.1);
+    const statusText = this.add.text(sx, sy-58, '', {
+      fontSize:'12px', fontFamily:'Inter, sans-serif', fontStyle:'bold', color:'#2ecc71', stroke:'#000', strokeThickness:3,
+    }).setOrigin(0.5).setDepth(sy+0.2);
+    const needText = this.add.text(sx, sy-42, '', {
+      fontSize:'12px', fontFamily:'Inter, sans-serif', fontStyle:'bold', color:'#ffd93d', stroke:'#000', strokeThickness:3,
+      backgroundColor:'#000000aa', padding:{x:6,y:3},
+    }).setOrigin(0.5).setDepth(sy+0.25).setVisible(false);
+    const repairBarBg = this.add.graphics().setDepth(sy+0.3).setVisible(false);
+    const repairBarFill = this.add.graphics().setDepth(sy+0.4).setVisible(false);
+    this.machineSprites[mid] = { sprite, glow, nameLabel, statusText, needText, machine, repairBarBg, repairBarFill, sx, sy };
   }
 
-  _removeMachine(machineId) {
-    const d = this.machineSprites[machineId];
-    if (!d) return;
-    d.sprite.destroy();
-    d.glow.destroy();
-    d.nameLabel.destroy();
-    d.statusText.destroy();
-    d.repairBarBg.destroy();
-    d.repairBarFill.destroy();
-    delete this.machineSprites[machineId];
+  _removeMachine(mid) {
+    const d = this.machineSprites[mid]; if (!d) return;
+    d.sprite.destroy(); d.glow.destroy(); d.nameLabel.destroy();
+    d.statusText.destroy(); d.needText.destroy(); d.repairBarBg.destroy(); d.repairBarFill.destroy();
+    delete this.machineSprites[mid];
   }
 
   // ----------------------------------------------------------
-  //  Item Sprites
+  //  Items
   // ----------------------------------------------------------
-  _addItem(item, itemId) {
-    const texKey = ITEM_TEXTURES[item.itemType] || 'item_welding_kit';
-    const sprite = this.add.image(0, 0, texKey);
-    sprite.setScale(ASSET_SCALE * 0.8);
-    sprite.setOrigin(0.5, ASSET_ORIGIN_Y);
-
-    const label = this.add.text(0, 0, ITEM_LABELS[item.itemType] || item.itemType, {
-      fontSize: '9px', fontFamily: 'Courier New',
-      color: '#ffd93d', stroke: '#000', strokeThickness: 2,
-    }).setOrigin(0.5, 0);
-
-    this.itemSprites[itemId] = { sprite, label, item };
+  _addItem(item, iid) {
+    const texKey = ITEM_TEXTURES[item.itemType]||'item_welding_kit';
+    const sprite = this.add.image(0,0,texKey).setScale(ASSET_SCALE*0.9).setOrigin(0.5,ASSET_ORIGIN_Y);
+    const label = this.add.text(0,0,ITEM_LABELS[item.itemType]||item.itemType, {
+      fontSize:'12px', fontFamily:'Inter, sans-serif', fontStyle:'bold',
+      color:'#ffd93d', stroke:'#000', strokeThickness:3,
+      backgroundColor:'#000000aa', padding:{x:4,y:2},
+    }).setOrigin(0.5,0);
+    this.itemSprites[iid] = { sprite, label, item };
   }
 
-  _removeItem(itemId) {
-    const d = this.itemSprites[itemId];
-    if (!d) return;
-    d.sprite.destroy();
-    d.label.destroy();
-    delete this.itemSprites[itemId];
+  _removeItem(iid) {
+    const d = this.itemSprites[iid]; if (!d) return;
+    d.sprite.destroy(); d.label.destroy(); delete this.itemSprites[iid];
   }
 
   // ----------------------------------------------------------
-  //  Visual Effects
+  //  Effects
   // ----------------------------------------------------------
-  _flashEmergencyAlert(type) {
-    const label = EMERGENCY_LABELS[type] || type;
-    const alert = this.add.text(640, 200, `! ${label} !`, {
-      fontSize: '32px', fontFamily: 'Courier New', fontStyle: 'bold',
-      color: '#ff0000', stroke: '#000', strokeThickness: 4,
-    }).setOrigin(0.5).setDepth(9999).setScrollFactor(0);
-
-    this.tweens.add({
-      targets: alert,
-      alpha: { from: 1, to: 0 },
-      y: 150,
-      duration: 2500,
-      ease: 'Cubic.easeOut',
-      onComplete: () => alert.destroy(),
-    });
-  }
-
-  _showRepairCompleteEffect(data) {
-    const playerData = this.playerSprites[data.playerId];
-    if (!playerData) return;
-
-    const { x, y } = worldToScreen(playerData.player.x, playerData.player.y);
-    const sx = x + this.camOX;
-    const sy = y + this.camOY;
-
-    const pointsText = this.add.text(sx, sy - 60, `+${data.points}`, {
-      fontSize: '20px', fontFamily: 'Courier New', fontStyle: 'bold',
-      color: '#2ecc71', stroke: '#000', strokeThickness: 3,
+  _showRepairEffect(data) {
+    const pd = this.playerSprites[data.playerId]; if (!pd) return;
+    const { x, y } = worldToScreen(pd.player.x, pd.player.y);
+    const sx = x + this.camOX, sy = y + this.camOY;
+    const txt = this.add.text(sx, sy-70, `+${data.points}`, {
+      fontSize:'28px', fontFamily:'Inter, sans-serif', fontStyle:'900',
+      color:'#2ecc71', stroke:'#000', strokeThickness:4,
     }).setOrigin(0.5).setDepth(9998);
+    this.tweens.add({ targets:txt, y:sy-130, alpha:0, duration:1500, ease:'Cubic.easeOut', onComplete:()=>txt.destroy() });
+  }
 
-    this.tweens.add({
-      targets: pointsText,
-      y: sy - 100,
-      alpha: 0,
-      duration: 1500,
-      ease: 'Cubic.easeOut',
-      onComplete: () => pointsText.destroy(),
+  _showDashEffect(sx, sy, dx, dy) {
+    for (let i = 0; i < 5; i++) {
+      const line = this.add.graphics().setDepth(9500);
+      const ox = -dx*(15+i*8)+(Math.random()-0.5)*12;
+      const oy = -dy*(8+i*4)+(Math.random()-0.5)*8;
+      line.lineStyle(2,0xffffff,0.6); line.lineBetween(sx+ox,sy+oy-20,sx+ox-dx*20,sy+oy-dy*10-20);
+      this.tweens.add({ targets:line, alpha:0, duration:300, delay:i*30, onComplete:()=>line.destroy() });
+    }
+  }
+
+  _showHitEffect(sx, sy) {
+    const flash = this.add.graphics().setDepth(9500);
+    flash.fillStyle(0xffffff,0.6); flash.fillCircle(sx,sy-25,20);
+    this.tweens.add({ targets:flash, alpha:0, duration:200, onComplete:()=>flash.destroy() });
+    for (let i = 0; i < 6; i++) {
+      const a = (Math.PI*2/6)*i;
+      const spark = this.add.graphics().setDepth(9501);
+      spark.fillStyle(0xffd93d); spark.fillCircle(sx,sy-25,3);
+      this.tweens.add({ targets:spark, x:Math.cos(a)*25, y:Math.sin(a)*25-25, alpha:0, duration:400, ease:'Cubic.easeOut', onComplete:()=>spark.destroy() });
+    }
+  }
+
+  // ----------------------------------------------------------
+  //  Minimap
+  // ----------------------------------------------------------
+  _drawMinimapBase() {
+    const canvas = document.getElementById('minimap');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const s = 7; // pixels per tile
+    canvas.width = MAP_W * s;
+    canvas.height = MAP_H * s;
+    for (let r = 0; r < MAP_H; r++) {
+      for (let c = 0; c < MAP_W; c++) {
+        ctx.fillStyle = MM_COLORS[MAP_TILES[r][c]] || MM_COLORS[0];
+        ctx.fillRect(c*s, r*s, s, s);
+      }
+    }
+    this._minimapDrawn = true;
+  }
+
+  _updateMinimap() {
+    if (!this._minimapDrawn || !this.room) return;
+    const canvas = document.getElementById('minimap');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const s = 7;
+
+    // Redraw base
+    this._drawMinimapBase();
+
+    // Draw machines
+    this.room.state.machines.forEach((m) => {
+      ctx.fillStyle = m.status === 'broken' ? '#ff4444' : '#44ff44';
+      ctx.fillRect(Math.floor(m.x)*s+1, Math.floor(m.y)*s+1, s-2, s-2);
+    });
+
+    // Draw items
+    this.room.state.items.forEach((it) => {
+      if (!it.carried) {
+        ctx.fillStyle = '#ffd93d';
+        ctx.fillRect(Math.floor(it.x)*s+2, Math.floor(it.y)*s+2, s-4, s-4);
+      }
+    });
+
+    // Draw players
+    this.room.state.players.forEach((p, sid) => {
+      const isLocal = sid === this.localSessionId;
+      ctx.fillStyle = isLocal ? '#2ecc71' : PLAYER_COLORS_HEX[p.color] || '#fff';
+      const px = Math.floor(p.x)*s, py = Math.floor(p.y)*s;
+      ctx.beginPath(); ctx.arc(px+s/2, py+s/2, isLocal?4:3, 0, Math.PI*2); ctx.fill();
+      if (isLocal) {
+        ctx.strokeStyle = '#2ecc71'; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.arc(px+s/2, py+s/2, 6, 0, Math.PI*2); ctx.stroke();
+      }
     });
   }
 
   // ----------------------------------------------------------
   //  UPDATE LOOP
   // ----------------------------------------------------------
-  update(_time, _delta) {
+  update(_time, delta) {
     if (!this.room) return;
 
-    // --- Send Input ---
-    let sx = 0, sy = 0;
-    if (this.cursors.right.isDown || this.wasd.right.isDown) sx += 1;
-    if (this.cursors.left.isDown  || this.wasd.left.isDown)  sx -= 1;
-    if (this.cursors.down.isDown  || this.wasd.down.isDown)  sy += 1;
-    if (this.cursors.up.isDown    || this.wasd.up.isDown)    sy -= 1;
+    // Input
+    let sx=0, sy=0;
+    if (this.cursors.right.isDown||this.moveKeys.right.isDown) sx+=1;
+    if (this.cursors.left.isDown||this.moveKeys.left.isDown||this.moveKeysAlt.left.isDown) sx-=1;
+    if (this.cursors.down.isDown||this.moveKeys.down.isDown) sy+=1;
+    if (this.cursors.up.isDown||this.moveKeys.up.isDown||this.moveKeysAlt.up.isDown) sy-=1;
 
     this.room.send('input', {
       sx, sy,
       pickup: Phaser.Input.Keyboard.JustDown(this.pickupKey),
       attack: Phaser.Input.Keyboard.JustDown(this.attackKey),
       dash:   Phaser.Input.Keyboard.JustDown(this.dashKey),
+      sprint: this.sprintKey.isDown,
       repair: this.repairKey.isDown,
     });
 
-    // --- Update HUD ---
-    this._updateHUD();
-
-    // --- Render Players ---
-    this._renderPlayers();
-
-    // --- Render Machines ---
+    this._pushHUDData();
+    this._renderPlayers(delta);
     this._renderMachines();
-
-    // --- Render Items ---
     this._renderItems();
-
-    // --- Update Emergency Effects ---
     this._updateEmergencyEffects();
+    this._updateCamera();
+    this._updateMinimap();
   }
 
-  // ----------------------------------------------------------
-  //  HUD Update
-  // ----------------------------------------------------------
-  _updateHUD() {
+  // Camera follow local player
+  _updateCamera() {
+    const lp = this.room.state.players.get(this.localSessionId);
+    if (!lp) return;
+    const { x, y } = worldToScreen(lp.x, lp.y);
+    this._cameraTarget.setPosition(x + this.camOX, y + this.camOY - 10);
+  }
+
+  _pushHUDData() {
+    if (!window.screenManager) return;
     const state = this.room.state;
-
-    // Timer
-    const totalSec = Math.max(0, Math.ceil(state.timer));
-    const min = Math.floor(totalSec / 60);
-    const sec = totalSec % 60;
-    const timeStr = `${String(min).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
-    this.hudElements.timer.setText(timeStr);
-    this.hudElements.timer.setColor(totalSec <= 30 ? '#ff0000' : '#ffffff');
-
-    // Stability bar
-    const stability = state.stability || 0;
-    const barW = 300;
-    const barH = 18;
-    const fillW = (stability / 100) * barW;
-    const barX = 490;
-    const barY = 20;
-
-    let barColor = 0x2ecc71;
-    if (stability < 30) barColor = 0xff0000;
-    else if (stability < 60) barColor = 0xf39c12;
-
-    this.hudElements.stabilityBar.clear();
-    this.hudElements.stabilityBar.fillStyle(barColor);
-    this.hudElements.stabilityBar.fillRoundedRect(barX, barY, fillW, barH, 4);
-    this.hudElements.stabilityText.setText(`${Math.round(stability)}%`);
-
-    // Score (local player)
-    const localPlayer = state.players.get(this.localSessionId);
-    if (localPlayer) {
-      this.hudElements.score.setText(String(localPlayer.score || 0));
-
-      // Carried item
-      if (localPlayer.carryingItemId) {
-        const item = state.items.get(localPlayer.carryingItemId);
-        const itemName = item ? (ITEM_LABELS[item.itemType] || item.itemType) : '?';
-        this.hudElements.carriedItem.setText(`Objet: ${itemName}`);
-        this.hudElements.carriedItem.setColor('#ffd93d');
-      } else {
-        this.hudElements.carriedItem.setText('Objet: aucun');
-        this.hudElements.carriedItem.setColor('#888');
-      }
+    const lp = state.players.get(this.localSessionId);
+    let carriedItem = null;
+    if (lp && lp.carryingItemId) {
+      const item = state.items.get(lp.carryingItemId);
+      carriedItem = item ? (ITEM_LABELS[item.itemType]||item.itemType) : '?';
     }
-
-    // Emergency list
-    const emergencyLines = [];
-    if (state.emergencies) {
-      state.emergencies.forEach((emg) => {
-        if (emg.active) {
-          const label = EMERGENCY_LABELS[emg.emergencyType] || emg.emergencyType;
-          const t = Math.ceil(emg.timeRemaining || 0);
-          emergencyLines.push(`${label} (${t}s)`);
-        }
-      });
-    }
-    this.hudElements.emergencies.setText(emergencyLines.join('  |  '));
+    const emergencies = [];
+    if (state.emergencies) state.emergencies.forEach((emg) => {
+      if (!emg.active) return;
+      const label = EMERGENCY_LABELS[emg.emergencyType]||emg.emergencyType;
+      emergencies.push(emg.emergencyType==='overheat' ? `${label} (${Math.ceil(emg.timeRemaining||0)}s)` : label);
+    });
+    window.screenManager.updateHUD({
+      timer:state.timer, stability:state.stability||0,
+      score:lp?(lp.score||0):0, carriedItem, emergencies,
+    });
   }
 
   // ----------------------------------------------------------
-  //  Player Rendering
+  //  Player Rendering (with lerping)
   // ----------------------------------------------------------
-  _renderPlayers() {
-    for (const [sid, data] of Object.entries(this.playerSprites)) {
-      const { sprite, label, carryIcon, player, stars, repairBarBg, repairBarFill } = data;
-      const { x, y } = worldToScreen(player.x, player.y);
-      const screenX = x + this.camOX;
-      const screenY = y + this.camOY;
+  _renderPlayers(delta) {
+    for (const [sid, d] of Object.entries(this.playerSprites)) {
+      const { sprite, label, carryIcon, player, stars, hatIcon, accIcon, repairBarBg, repairBarFill } = d;
+      const isLocal = sid === this.localSessionId;
+
+      // Smooth lerping for remote players
+      const lerpF = 1 - Math.exp(-12 * (delta||16) / 1000);
+      if (isLocal) {
+        d.lerpX = player.x; d.lerpY = player.y;
+      } else {
+        d.lerpX += (player.x - d.lerpX) * lerpF;
+        d.lerpY += (player.y - d.lerpY) * lerpF;
+      }
+
+      const { x, y } = worldToScreen(d.lerpX, d.lerpY);
+      const screenX = x + this.camOX, screenY = y + this.camOY;
 
       sprite.setPosition(screenX, screenY);
-      label.setPosition(screenX, screenY - 42);
-      carryIcon.setPosition(screenX, screenY - 54);
-      stars.setPosition(screenX, screenY - 54);
+      label.setPosition(screenX, screenY-55);
+      carryIcon.setPosition(screenX, screenY-70);
+      stars.setPosition(screenX, screenY-70);
+      if (hatIcon) hatIcon.setPosition(screenX, screenY-62);
+      if (accIcon) accIcon.setPosition(screenX+18, screenY-30);
 
-      // Y-SORTING
       const depth = screenY;
-      sprite.setDepth(depth);
-      label.setDepth(depth + 0.1);
-      carryIcon.setDepth(depth + 0.2);
-      stars.setDepth(depth + 0.3);
+      sprite.setDepth(depth); label.setDepth(depth+0.1);
+      carryIcon.setDepth(depth+0.2); stars.setDepth(depth+0.3);
+      if (hatIcon) hatIcon.setDepth(depth+0.15);
+      if (accIcon) accIcon.setDepth(depth+0.15);
 
       // Carry indicator
       if (player.carryingItemId) {
         const item = this.room.state.items.get(player.carryingItemId);
-        carryIcon.setText(item ? `[${ITEM_LABELS[item.itemType] || item.itemType}]` : '[OBJET]');
+        carryIcon.setText(item ? (ITEM_LABELS[item.itemType]||item.itemType) : 'OBJET');
         carryIcon.setVisible(true);
-      } else {
-        carryIcon.setVisible(false);
-      }
+      } else carryIcon.setVisible(false);
+
+      // Detect dash
+      const dx = player.x-(d.prevX||player.x), dy = player.y-(d.prevY||player.y);
+      const moved = Math.sqrt(dx*dx+dy*dy);
+      if (moved>0.3) this._showDashEffect(screenX, screenY, dx/moved, dy/moved);
+      d.prevX = player.x; d.prevY = player.y;
 
       // State effects
-      const pState = player.state;
-
-      // Stunned: shake + stars
-      if (pState === 'stunned') {
-        sprite.x += Math.sin(this.time.now * 0.05) * 3;
-        stars.setVisible(true);
-        sprite.setAlpha(1);
-        sprite.setAngle(0);
-      }
-      // Knocked: flat on ground
-      else if (pState === 'knocked') {
-        sprite.setAngle(90);
-        sprite.setAlpha(0.6);
-        stars.setVisible(false);
-      }
-      // Repairing: subtle animation
-      else if (pState === 'repairing') {
-        sprite.setAngle(0);
-        sprite.setAlpha(1);
-        stars.setVisible(false);
-        // Show wrench-like motion
-        sprite.x += Math.sin(this.time.now * 0.01) * 2;
-      }
-      // Normal
-      else {
-        sprite.setAngle(0);
-        sprite.setAlpha(1);
-        stars.setVisible(false);
-      }
-
-      // Repair progress bar (for this player, shown near them)
-      if (player.repairProgress > 0 && player.repairProgress < 100 && pState === 'repairing') {
-        repairBarBg.clear().setVisible(true);
-        repairBarBg.fillStyle(0x333333);
-        repairBarBg.fillRoundedRect(screenX - 25, screenY - 65, 50, 6, 2);
-        repairBarBg.setDepth(depth + 0.4);
-
-        repairBarFill.clear().setVisible(true);
-        repairBarFill.fillStyle(0x2ecc71);
-        repairBarFill.fillRoundedRect(screenX - 25, screenY - 65, (player.repairProgress / 100) * 50, 6, 2);
-        repairBarFill.setDepth(depth + 0.5);
+      const ps = player.state;
+      if (ps==='stunned') {
+        sprite.x += Math.sin(this.time.now*0.05)*4;
+        stars.setVisible(true); sprite.setAlpha(1); sprite.setAngle(0);
+        if (!d._wasStunned) { this._showHitEffect(screenX, screenY); d._wasStunned=true; }
       } else {
-        repairBarBg.clear().setVisible(false);
-        repairBarFill.clear().setVisible(false);
-      }
-    }
-  }
-
-  // ----------------------------------------------------------
-  //  Machine Rendering
-  // ----------------------------------------------------------
-  _renderMachines() {
-    for (const [_id, data] of Object.entries(this.machineSprites)) {
-      const { sprite, glow, statusText, machine, repairBarBg, repairBarFill, sx, sy } = data;
-
-      // Status glow
-      glow.clear();
-      if (machine.status === 'working') {
-        glow.fillStyle(0x2ecc71, 0.15);
-        glow.fillEllipse(sx, sy, 40, 20);
-        statusText.setText('OK');
-        statusText.setColor('#2ecc71');
-      } else if (machine.status === 'broken') {
-        // Pulsing red glow
-        const pulse = 0.15 + Math.sin(this.time.now * 0.005) * 0.1;
-        glow.fillStyle(0xff0000, pulse);
-        glow.fillEllipse(sx, sy, 50, 25);
-        statusText.setText('EN PANNE');
-        statusText.setColor('#ff0000');
-
-        // Needed item hint
-        if (machine.requiredItem) {
-          const itemName = ITEM_LABELS[machine.requiredItem] || machine.requiredItem;
-          statusText.setText(`EN PANNE [${itemName}]`);
+        d._wasStunned=false;
+        if (ps==='knocked') {
+          sprite.setAngle(90); sprite.setAlpha(0.6); stars.setVisible(false);
+          if (!d._wasKnocked) { this._showHitEffect(screenX, screenY); d._wasKnocked=true; }
+        } else {
+          d._wasKnocked=false;
+          sprite.setAngle(0); sprite.setAlpha(1); stars.setVisible(false);
+          if (ps==='repairing') sprite.x += Math.sin(this.time.now*0.01)*2;
         }
       }
 
-      // Repair progress bar
-      if (machine.repairProgress > 0 && machine.repairProgress < 100 && machine.repairerId) {
-        repairBarBg.clear().setVisible(true);
-        repairBarBg.fillStyle(0x333333);
-        repairBarBg.fillRoundedRect(sx - 30, sy - 75, 60, 8, 3);
-
-        repairBarFill.clear().setVisible(true);
-        repairBarFill.fillStyle(0x3498db);
-        repairBarFill.fillRoundedRect(sx - 30, sy - 75, (machine.repairProgress / 100) * 60, 8, 3);
-      } else {
-        repairBarBg.clear().setVisible(false);
-        repairBarFill.clear().setVisible(false);
-      }
-
-      // Y-SORTING for machines
-      const depth = sy;
-      sprite.setDepth(depth);
+      // Repair bar (0-1)
+      if (player.repairProgress>0 && player.repairProgress<1 && ps==='repairing') {
+        repairBarBg.clear().setVisible(true).fillStyle(0x333333).fillRoundedRect(screenX-30,screenY-82,60,8,3).setDepth(depth+0.4);
+        repairBarFill.clear().setVisible(true).fillStyle(0x2ecc71).fillRoundedRect(screenX-30,screenY-82,player.repairProgress*60,8,3).setDepth(depth+0.5);
+      } else { repairBarBg.clear().setVisible(false); repairBarFill.clear().setVisible(false); }
     }
   }
 
   // ----------------------------------------------------------
-  //  Item Rendering
+  //  Machine / Item Rendering
   // ----------------------------------------------------------
+  _renderMachines() {
+    for (const [_, d] of Object.entries(this.machineSprites)) {
+      const { glow, statusText, needText, machine, repairBarBg, repairBarFill, sx, sy, sprite } = d;
+      glow.clear();
+      if (machine.status==='working') {
+        glow.fillStyle(0x2ecc71,0.15); glow.fillEllipse(sx,sy,45,22);
+        statusText.setText('OK').setColor('#2ecc71'); needText.setVisible(false);
+      } else {
+        const p = 0.2+Math.sin(this.time.now*0.005)*0.15;
+        glow.fillStyle(0xff0000,p); glow.fillEllipse(sx,sy,55,28);
+        statusText.setText('EN PANNE').setColor('#ff0000');
+        const need = MACHINE_NEEDS[machine.machineType];
+        if (need) { needText.setText(`Besoin: ${need}`).setVisible(true); }
+      }
+      if (machine.repairProgress>0 && machine.repairProgress<1 && machine.repairerId) {
+        repairBarBg.clear().setVisible(true).fillStyle(0x333333).fillRoundedRect(sx-35,sy-90,70,10,4);
+        repairBarFill.clear().setVisible(true).fillStyle(0x3498db).fillRoundedRect(sx-35,sy-90,machine.repairProgress*70,10,4);
+      } else { repairBarBg.clear().setVisible(false); repairBarFill.clear().setVisible(false); }
+      sprite.setDepth(sy);
+    }
+  }
+
   _renderItems() {
-    for (const [_id, data] of Object.entries(this.itemSprites)) {
-      const { sprite, label, item } = data;
-
-      if (item.carried) {
-        sprite.setVisible(false);
-        label.setVisible(false);
-      } else {
-        sprite.setVisible(true);
-        label.setVisible(true);
+    for (const [_, d] of Object.entries(this.itemSprites)) {
+      const { sprite, label, item } = d;
+      if (item.carried) { sprite.setVisible(false); label.setVisible(false); }
+      else {
+        sprite.setVisible(true); label.setVisible(true);
         const { x, y } = worldToScreen(item.x, item.y);
-        const screenX = x + this.camOX;
-        const screenY = y + this.camOY;
-        sprite.setPosition(screenX, screenY);
-        label.setPosition(screenX, screenY + 4);
-
-        // Subtle bobbing animation
-        sprite.y += Math.sin(this.time.now * 0.003 + item.x * 100) * 2;
-
-        // Y-SORTING
-        sprite.setDepth(screenY);
-        label.setDepth(screenY + 0.1);
+        const sx = x+this.camOX, sy = y+this.camOY;
+        sprite.setPosition(sx,sy); label.setPosition(sx,sy+6);
+        sprite.y += Math.sin(this.time.now*0.003+item.x*100)*3;
+        sprite.setDepth(sy); label.setDepth(sy+0.1);
       }
     }
   }
 
   // ----------------------------------------------------------
-  //  Emergency Effect Updates
+  //  Emergency Effects
   // ----------------------------------------------------------
   _updateEmergencyEffects() {
     const state = this.room.state;
-    let hasGas = false;
-    let hasCircuit = false;
-    let hasOverheat = false;
-    let overheatTime = 0;
+    let hasGas=false, hasCircuit=false, hasOverheat=false, overheatTime=0;
+    if (state.emergencies) state.emergencies.forEach((e) => {
+      if (!e.active) return;
+      if (e.emergencyType==='gas_leak') hasGas=true;
+      if (e.emergencyType==='short_circuit') hasCircuit=true;
+      if (e.emergencyType==='overheat') { hasOverheat=true; overheatTime=Math.ceil(e.timeRemaining||0); }
+    });
 
-    if (state.emergencies) {
-      state.emergencies.forEach((emg) => {
-        if (!emg.active) return;
-        if (emg.emergencyType === 'gas_leak') hasGas = true;
-        if (emg.emergencyType === 'short_circuit') hasCircuit = true;
-        if (emg.emergencyType === 'overheat') {
-          hasOverheat = true;
-          overheatTime = Math.ceil(emg.timeRemaining || 0);
-        }
-      });
-    }
+    this.gasOverlay.alpha += ((hasGas?1:0)-this.gasOverlay.alpha)*0.05;
 
-    // Gas leak: yellow-green tint
-    const gasTarget = hasGas ? 1 : 0;
-    this.gasOverlay.alpha += (gasTarget - this.gasOverlay.alpha) * 0.05;
-
-    // Short circuit: darkness
     if (hasCircuit) {
-      // Redraw dark overlay with a visibility hole around local player
       this.circuitOverlay.clear();
-      this.circuitOverlay.fillStyle(0x000000, 0.75);
-      this.circuitOverlay.fillRect(0, 0, 1280, 720);
-
-      const localP = state.players.get(this.localSessionId);
-      if (localP) {
-        const { x, y } = worldToScreen(localP.x, localP.y);
-        const px = x + this.camOX;
-        const py = y + this.camOY;
-        // Punch a bright circle (additive blend trick: just draw lighter area)
-        this.circuitOverlay.fillStyle(0x000000, 0); // Transparent won't work, so use a gradient-like approach
-        // Use a series of decreasing opacity circles for smooth falloff
-        for (let r = 120; r > 0; r -= 10) {
-          const a = 0.75 * (r / 120);
-          this.circuitOverlay.fillStyle(0x0f0f23, a);
-          this.circuitOverlay.fillCircle(px, py, r);
+      this.circuitOverlay.fillStyle(0x000000,0.75);
+      this.circuitOverlay.fillRect(-2000,-2000,6000,6000);
+      const lp = state.players.get(this.localSessionId);
+      if (lp) {
+        const { x, y } = worldToScreen(lp.x, lp.y);
+        const px = x+this.camOX, py = y+this.camOY;
+        for (let r=200; r>0; r-=12) {
+          this.circuitOverlay.fillStyle(0x0f0f23, 0.75*(r/200));
+          this.circuitOverlay.fillCircle(px,py,r);
         }
       }
-      this.circuitOverlay.alpha += (1 - this.circuitOverlay.alpha) * 0.05;
-    } else {
-      this.circuitOverlay.alpha += (0 - this.circuitOverlay.alpha) * 0.08;
-    }
+      this.circuitOverlay.alpha += (1-this.circuitOverlay.alpha)*0.05;
+    } else this.circuitOverlay.alpha += -this.circuitOverlay.alpha*0.08;
 
-    // Overheat: red pulsing border
     if (hasOverheat) {
-      const pulse = 0.5 + Math.sin(this.time.now * 0.008) * 0.5;
-      this.overheatBorder.setAlpha(pulse);
-      this.overheatText.setText(`SURCHAUFFE: ${overheatTime}s`);
-      this.overheatText.setAlpha(1);
+      this.overheatBorder.setAlpha(0.5+Math.sin(this.time.now*0.008)*0.5);
+      this.overheatText.setText(`SURCHAUFFE: ${overheatTime}s`).setAlpha(1);
     } else {
-      this.overheatBorder.alpha += (0 - this.overheatBorder.alpha) * 0.08;
-      this.overheatText.alpha += (0 - this.overheatText.alpha) * 0.08;
+      this.overheatBorder.alpha += -this.overheatBorder.alpha*0.08;
+      this.overheatText.alpha += -this.overheatText.alpha*0.08;
     }
   }
 }

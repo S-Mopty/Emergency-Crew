@@ -7,11 +7,14 @@ const { Room } = require("colyseus");
 const { GameState, Player, Machine, GameItem, Emergency } = require("./GameState");
 const { MACHINES, ITEM_SPAWNS, PLAYER_SPAWNS, isWalkable } = require("./MapData");
 
+const COLOR_NAMES = ['Bleu', 'Rouge', 'Vert', 'Orange'];
+
 // =============================================================================
 //  Constants
 // =============================================================================
 const TICK_RATE            = 20;    // Hz (simulation interval)
-const PLAYER_SPEED         = 3.5;   // tiles/s
+const PLAYER_SPEED         = 5;     // tiles/s (base walk)
+const SPRINT_MULTIPLIER    = 1.5;   // sprint speed multiplier
 const PLAYER_RADIUS        = 0.35;  // tiles
 const PICKUP_RANGE         = 1.2;   // tiles
 const ATTACK_RANGE         = 1.5;   // tiles
@@ -19,18 +22,18 @@ const ATTACK_KNOCKBACK     = 3;     // tiles (ejection distance)
 const ATTACK_COOLDOWN      = 1;     // seconds
 const DASH_SPEED           = 8;     // tiles/s
 const DASH_DURATION        = 0.3;   // seconds
-const DASH_COOLDOWN        = 3;     // seconds
+const DASH_COOLDOWN        = 2;     // seconds
 const DASH_RADIUS          = 0.5;   // tiles (hit radius during dash)
 const STUN_DURATION        = 1.5;   // seconds (wrench hit)
 const KNOCKED_DURATION     = 2;     // seconds (dash knockdown)
 const REPAIR_DURATION      = 3;     // seconds to fully repair
 const REPAIR_RANGE         = 1.5;   // tiles
-const STABILITY_DRAIN      = 2;     // pts/s per active emergency
-const STABILITY_REPAIR_BONUS = 15;  // pts restored on repair
-const EMERGENCY_INTERVAL_MIN = 15;  // seconds
-const EMERGENCY_INTERVAL_MAX = 20;  // seconds
+const STABILITY_DRAIN      = 0.8;   // pts/s per active emergency (was 2)
+const STABILITY_REPAIR_BONUS = 12;  // pts restored on repair
+const EMERGENCY_INTERVAL_MIN = 18;  // seconds (was 15)
+const EMERGENCY_INTERVAL_MAX = 28;  // seconds (was 20)
 const MAX_ACTIVE_EMERGENCIES = 3;
-const GAME_DURATION        = 180;   // seconds (3 minutes)
+const GAME_DURATION        = 300;   // seconds (5 minutes)
 const OVERHEAT_TIMEOUT     = 30;    // seconds before explosion
 const ITEM_RESPAWN_DELAY   = 5;     // seconds after consumption
 const AUTO_DISPOSE_DELAY   = 30;    // seconds after game ends
@@ -70,12 +73,59 @@ class GameRoom extends Room {
     this._scheduleNextEmergency();
 
     // --- Message handlers ---
+    this.readyPlayers = new Set();
+
     this.onMessage("input", (client, data) => {
       this.inputs[client.sessionId] = data;
     });
 
     this.onMessage("start_game", (client, _data) => {
       this._handleStartGame(client);
+    });
+
+    this.onMessage("restart_game", (client, _data) => {
+      if (client.sessionId !== this.state.hostId) return;
+      this._restartGame();
+    });
+
+    this.onMessage("set_nickname", (client, data) => {
+      if (this.state.phase !== "waiting") return;
+      const player = this.state.players.get(client.sessionId);
+      if (!player) return;
+      let name = (data.name || "").trim().substring(0, 12);
+      name = name.replace(/[^\w\s\-!?àâéèêëïîôùûüçÀÂÉÈÊËÏÎÔÙÛÜÇ]/g, "");
+      if (name.length === 0) name = COLOR_NAMES[player.color];
+      player.nickname = name;
+      player.ready = false;
+    });
+
+    this.onMessage("set_cosmetic", (client, data) => {
+      if (this.state.phase !== "waiting") return;
+      const player = this.state.players.get(client.sessionId);
+      if (!player) return;
+      if (typeof data.hat === "number" && data.hat >= 0 && data.hat <= 3) player.hat = data.hat;
+      if (typeof data.accessory === "number" && data.accessory >= 0 && data.accessory <= 3) player.accessory = data.accessory;
+      if (typeof data.characterType === "number" && data.characterType >= 0 && data.characterType <= 3) player.characterType = data.characterType;
+      player.ready = false;
+    });
+
+    this.onMessage("toggle_ready", (client, _data) => {
+      if (this.state.phase !== "waiting") return;
+      const player = this.state.players.get(client.sessionId);
+      if (!player) return;
+      player.ready = !player.ready;
+    });
+
+    this.onMessage("tutorial_ready", (client, _data) => {
+      if (this.state.phase !== "tutorial") return;
+      this.readyPlayers.add(client.sessionId);
+      const total = this.state.players.size;
+      const ready = this.readyPlayers.size;
+      this.broadcast("ready_count", { ready, total });
+
+      if (ready >= total) {
+        this._startPlaying();
+      }
     });
 
     console.log("[GameRoom] Created, waiting for players...");
@@ -85,15 +135,15 @@ class GameRoom extends Room {
     const player = new Player();
     const spawnIdx = this.colorIndex % PLAYER_SPAWNS.length;
     const spawn = PLAYER_SPAWNS[spawnIdx];
-    player.x = spawn.x + 0.5;  // center of tile
+    player.x = spawn.x + 0.5;
     player.y = spawn.y + 0.5;
     player.color = this.colorIndex % 4;
+    player.nickname = COLOR_NAMES[player.color];
     this.colorIndex++;
 
     this.state.players.set(client.sessionId, player);
-    this.inputs[client.sessionId] = { sx: 0, sy: 0, pickup: false, attack: false, dash: false, repair: false };
+    this.inputs[client.sessionId] = { sx: 0, sy: 0, pickup: false, attack: false, dash: false, sprint: false, repair: false };
 
-    // First player becomes host
     if (this.state.hostId === "") {
       this.state.hostId = client.sessionId;
     }
@@ -104,23 +154,25 @@ class GameRoom extends Room {
   onLeave(client, _consented) {
     const player = this.state.players.get(client.sessionId);
     if (player) {
-      // Drop carried item
-      if (player.carryingItemId) {
-        this._dropItem(player, client.sessionId);
-      }
-      // If player was repairing a machine, reset that machine's repair state
-      if (player.repairTarget) {
-        this._cancelRepair(player, client.sessionId);
-      }
+      if (player.carryingItemId) this._dropItem(player, client.sessionId);
+      if (player.repairTarget) this._cancelRepair(player, client.sessionId);
       this.state.players.delete(client.sessionId);
     }
     delete this.inputs[client.sessionId];
     delete this.dashStates[client.sessionId];
+    this.readyPlayers.delete(client.sessionId);
 
     // If host left, assign new host
     if (this.state.hostId === client.sessionId) {
       const remaining = Array.from(this.state.players.keys());
       this.state.hostId = remaining.length > 0 ? remaining[0] : "";
+    }
+
+    // If in tutorial and all remaining are ready, start playing
+    if (this.state.phase === "tutorial" && this.state.players.size >= 2) {
+      if (this.readyPlayers.size >= this.state.players.size) {
+        this._startPlaying();
+      }
     }
 
     console.log(`[GameRoom] - Player ${client.sessionId} left (${this.state.players.size} remaining)`);
@@ -140,15 +192,28 @@ class GameRoom extends Room {
     if (client.sessionId !== this.state.hostId) return;
     if (this.state.players.size < 2) return;
 
+    // Validate all players are ready
+    let allReady = true;
+    this.state.players.forEach((player) => { if (!player.ready) allReady = false; });
+    if (!allReady) return;
+
+    // Transition to tutorial phase - NO simulation starts
+    this.state.phase = "tutorial";
+    this.readyPlayers.clear();
+    console.log("[GameRoom] Tutorial phase started");
+  }
+
+  _startPlaying() {
+    this.readyPlayers.clear();
     this.state.phase = "playing";
     this.state.timer = GAME_DURATION;
     this.state.stability = 100;
 
-    // Start the simulation loop
+    // NOW start the simulation loop
     this.setSimulationInterval((dt) => this._tick(dt / 1000), 1000 / TICK_RATE);
 
     this.broadcast("game_started", {});
-    console.log("[GameRoom] Game started!");
+    console.log("[GameRoom] Game started (all players ready from tutorial)!");
   }
 
   // ===========================================================================
@@ -240,8 +305,9 @@ class GameRoom extends Room {
       const len = Math.sqrt(wx * wx + wy * wy);
 
       if (len > 0) {
-        player.vx = (wx / len) * PLAYER_SPEED;
-        player.vy = (wy / len) * PLAYER_SPEED;
+        const speed = input.sprint ? PLAYER_SPEED * SPRINT_MULTIPLIER : PLAYER_SPEED;
+        player.vx = (wx / len) * speed;
+        player.vy = (wy / len) * speed;
       } else {
         player.vx = 0;
         player.vy = 0;
@@ -458,6 +524,7 @@ class GameRoom extends Room {
       if (bestTarget) {
         this._applyHit(attacker, atkId, bestTarget, bestTargetId, "stunned", STUN_DURATION, ATTACK_KNOCKBACK);
         attacker.score += SCORE_KO;
+        attacker.koCount++;
       }
     });
 
@@ -541,6 +608,7 @@ class GameRoom extends Room {
           dash.hitPlayers.add(targetId);
           this._applyHit(dasher, sid, target, targetId, "knocked", KNOCKED_DURATION, ATTACK_KNOCKBACK);
           dasher.score += SCORE_KO;
+          dasher.koCount++;
         }
       });
 
@@ -926,7 +994,12 @@ class GameRoom extends Room {
     let highScore = -1;
 
     this.state.players.forEach((player, sid) => {
-      scores[sid] = player.score;
+      scores[sid] = {
+        score: player.score,
+        color: player.color,
+        name: player.nickname || COLOR_NAMES[player.color] || '???',
+        kos: player.koCount || 0,
+      };
       if (reason !== "stability_zero" && player.score > highScore) {
         highScore = player.score;
         winner = sid;
@@ -940,10 +1013,59 @@ class GameRoom extends Room {
     // setSimulationInterval with null interval effectively stops it
     this.setSimulationInterval(() => {}, 1000);
 
-    // Auto-dispose after delay
+    // Auto-dispose after delay (longer to allow restart)
     this.disposeTimeout = setTimeout(() => {
       this.disconnect();
-    }, AUTO_DISPOSE_DELAY * 1000);
+    }, 120 * 1000);
+  }
+
+  _restartGame() {
+    if (this.state.phase !== "ended") return;
+
+    // Cancel auto-dispose
+    if (this.disposeTimeout) { clearTimeout(this.disposeTimeout); this.disposeTimeout = null; }
+
+    // Reset all players
+    let spawnIdx = 0;
+    this.state.players.forEach((player, sid) => {
+      const spawn = PLAYER_SPAWNS[spawnIdx % PLAYER_SPAWNS.length];
+      player.x = spawn.x + 0.5;
+      player.y = spawn.y + 0.5;
+      player.vx = 0; player.vy = 0;
+      player.state = "normal"; player.stateTimer = 0;
+      player.carryingItemId = ""; player.score = 0;
+      player.attackCooldown = 0; player.dashCooldown = 0;
+      player.repairTarget = ""; player.repairProgress = 0;
+      player.koCount = 0; player.ready = false;
+      this.inputs[sid] = { sx:0, sy:0, pickup:false, attack:false, dash:false, sprint:false, repair:false };
+      delete this.dashStates[sid];
+      spawnIdx++;
+    });
+
+    // Reset machines
+    this.state.machines.clear();
+    this._initMachines();
+
+    // Reset items
+    this.state.items.clear();
+    this.itemIdCounter = 0;
+    this._spawnInitialItems();
+
+    // Reset emergencies
+    this.state.emergencies.clear();
+    this.emergencyIdCounter = 0;
+    this.itemRespawnQueue = [];
+
+    // Reset game state
+    this.state.stability = 100;
+    this.state.timer = GAME_DURATION;
+    this._scheduleNextEmergency();
+
+    // Go to playing directly (skip lobby + tuto)
+    this.state.phase = "playing";
+    this.setSimulationInterval((dt) => this._tick(dt / 1000), 1000 / TICK_RATE);
+    this.broadcast("game_started", {});
+    console.log("[GameRoom] Game restarted!");
   }
 
   // ===========================================================================

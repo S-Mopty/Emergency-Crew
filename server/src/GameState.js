@@ -25,6 +25,12 @@ class Player extends Schema {
     this.dashCooldown = 0;        // seconds until next dash
     this.repairTarget = "";       // machineId being repaired, or ""
     this.repairProgress = 0;      // 0..1 progress toward repair completion
+    this.koCount = 0;             // number of KOs scored
+    this.nickname = "";           // player-chosen display name
+    this.ready = false;           // lobby ready state
+    this.hat = 0;                 // cosmetic: 0=none, 1=casque, 2=couronne, 3=fete
+    this.accessory = 0;           // cosmetic: 0=none, 1=cle, 2=lunettes, 3=echarpe
+    this.characterType = 0;       // 0=ouvrier, 1=ingenieur, 2=technicien, 3=chef
   }
 }
 defineTypes(Player, {
@@ -41,6 +47,12 @@ defineTypes(Player, {
   dashCooldown:    "number",
   repairTarget:    "string",
   repairProgress:  "number",
+  koCount:         "uint8",
+  nickname:        "string",
+  ready:           "boolean",
+  hat:             "uint8",
+  accessory:       "uint8",
+  characterType:   "uint8",
 });
 
 // =============================================================================
@@ -120,7 +132,7 @@ class GameState extends Schema {
     this.emergencies = new MapSchema();
     this.stability   = 100;       // 0-100, if 0 everyone loses
     this.timer       = 180;       // seconds remaining (3 minutes)
-    this.phase       = "waiting"; // "waiting" | "playing" | "ended"
+    this.phase       = "waiting"; // "waiting" | "tutorial" | "playing" | "ended"
     this.hostId      = "";        // sessionId of room creator
   }
 }

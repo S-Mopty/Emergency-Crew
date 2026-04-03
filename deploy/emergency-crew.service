@@ -1,0 +1,16 @@
+[Unit]
+Description=Emergency Crew Game Server
+After=network.target
+
+[Service]
+Type=simple
+User=gameserver
+WorkingDirectory=/opt/emergency-crew
+ExecStart=/usr/bin/node server/src/index.js
+Restart=always
+RestartSec=5
+Environment=NODE_ENV=production
+Environment=PORT=3000
+
+[Install]
+WantedBy=multi-user.target
