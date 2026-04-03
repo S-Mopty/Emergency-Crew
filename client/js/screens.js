@@ -10,7 +10,7 @@ const PLAYER_COLORS_CSS = [
   'var(--player-green)', 'var(--player-orange)',
 ];
 const COLOR_NAMES = ['Bleu', 'Rouge', 'Vert', 'Orange'];
-const CHAR_TYPE_NAMES = ['Ouvrier', 'Ingenieur', 'Technicien', 'Chef'];
+const CHAR_TYPE_NAMES = ['Ouvrier', 'Ingenieur', 'Technicien', 'Chef', 'Agent Secret'];
 const HAT_ICONS = ['', '\u26D1\uFE0F', '\uD83D\uDC51', '\uD83C\uDF89'];
 const ACC_ICONS = ['', '\uD83D\uDD27', '\uD83D\uDC53', '\uD83E\uDDE3'];
 const ITEM_LABELS = {
@@ -36,7 +36,32 @@ export class ScreenManager {
     this._localHat = 0;
     this._localAcc = 0;
 
+    this._cheatBuffer = '';
+    this._cheatUnlocked = false;
     this._bindEvents();
+    this._bindCheatCode();
+  }
+
+  _bindCheatCode() {
+    document.addEventListener('keydown', (e) => {
+      if (document.activeElement.tagName === 'INPUT') return;
+      // Touche P = unlock Agent Secret
+      if (e.key.toUpperCase() === 'P' && !this._cheatUnlocked) {
+        this._cheatUnlocked = true;
+        const flash = document.createElement('div');
+        flash.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(255,215,0,0.3);z-index:9999;pointer-events:none;transition:opacity 0.5s;';
+        document.body.appendChild(flash);
+        setTimeout(() => { flash.style.opacity = '0'; setTimeout(() => flash.remove(), 500); }, 200);
+        this._localCharType = 4;
+        this._applyCheat();
+      }
+    });
+  }
+
+  _applyCheat() {
+    if (this.room && this._cheatUnlocked) {
+      this.room.send('set_cosmetic', { characterType: 4 });
+    }
   }
 
   // ----------------------------------------------------------
@@ -50,6 +75,12 @@ export class ScreenManager {
 
     const hud = document.getElementById('game-hud');
     if (hud) hud.style.display = screenId === 'game' ? 'block' : 'none';
+
+    // Switch music
+    if (window.switchMusic) {
+      if (screenId === 'game') window.switchMusic('game');
+      else window.switchMusic('menu');
+    }
 
     if (this.currentScreen === 'game' && screenId !== 'game' && this.phaserGame) {
       ['GameScene', 'TutorialScene'].forEach(s => {
@@ -97,11 +128,13 @@ export class ScreenManager {
 
     // Customize: character type arrows
     document.getElementById('btn-char-prev').addEventListener('click', () => {
-      this._localCharType = (this._localCharType + 3) % 4;
+      const max = this._cheatUnlocked ? 5 : 4;
+      this._localCharType = (this._localCharType + max - 1) % max;
       this._updatePreview();
     });
     document.getElementById('btn-char-next').addEventListener('click', () => {
-      this._localCharType = (this._localCharType + 1) % 4;
+      const max = this._cheatUnlocked ? 5 : 4;
+      this._localCharType = (this._localCharType + 1) % max;
       this._updatePreview();
     });
 
@@ -177,17 +210,43 @@ export class ScreenManager {
       ? PLAYER_COLORS_HEX[this.room.state.players.get(this.room.sessionId)?.color || 0]
       : PLAYER_COLORS_HEX[0];
 
-    const body = document.querySelector('.preview-body');
-    if (body) body.style.background = color;
+    const ct = this._localCharType;
+    const preview = document.getElementById('preview-character');
+    if (!preview) return;
 
-    const hat = document.querySelector('.preview-hat');
+    // Reset all type classes
+    preview.className = 'preview-character char-type-' + ct;
+
+    const body = preview.querySelector('.preview-body');
+    const head = preview.querySelector('.preview-head');
+
+    // Type-specific styling
+    if (ct === 0) {
+      if (body) { body.style.background = color; body.style.clipPath = 'polygon(50% 0%, 100% 35%, 85% 100%, 15% 100%, 0% 35%)'; body.style.boxShadow = ''; }
+      if (head) { head.style.background = '#ffeaa7'; head.style.boxShadow = ''; }
+    } else if (ct === 1) {
+      if (body) { body.style.background = '#ecf0f1'; body.style.clipPath = 'polygon(50% 0%, 95% 35%, 90% 100%, 10% 100%, 5% 35%)'; body.style.boxShadow = ''; }
+      if (head) { head.style.background = '#ffeaa7'; head.style.boxShadow = ''; }
+    } else if (ct === 2) {
+      if (body) { body.style.background = color; body.style.clipPath = 'polygon(50% 0%, 100% 30%, 95% 100%, 5% 100%, 0% 30%)'; body.style.boxShadow = ''; }
+      if (head) { head.style.background = '#ffeaa7'; head.style.boxShadow = ''; }
+    } else if (ct === 3) {
+      if (body) { body.style.background = '#2c3e50'; body.style.clipPath = 'polygon(50% 0%, 95% 35%, 90% 100%, 10% 100%, 5% 35%)'; body.style.boxShadow = ''; }
+      if (head) { head.style.background = '#ffeaa7'; head.style.boxShadow = ''; }
+    } else {
+      // SECRET: dark armor + glowing visor
+      if (body) { body.style.background = '#0d0d1a'; body.style.clipPath = 'polygon(50% 0%, 98% 32%, 92% 100%, 8% 100%, 2% 32%)'; body.style.boxShadow = `0 0 15px ${color}, inset 0 0 10px ${color}40`; }
+      if (head) { head.style.background = '#0d0d1a'; head.style.borderRadius = '30%'; head.style.boxShadow = `0 0 12px ${color}`; }
+    }
+
+    const hat = preview.querySelector('.preview-hat');
     if (hat) hat.textContent = HAT_ICONS[this._localHat] || '';
 
-    const acc = document.querySelector('.preview-acc');
+    const acc = preview.querySelector('.preview-acc');
     if (acc) acc.textContent = ACC_ICONS[this._localAcc] || '';
 
     const typeName = document.getElementById('preview-type-name');
-    if (typeName) typeName.textContent = CHAR_TYPE_NAMES[this._localCharType] || 'Ouvrier';
+    if (typeName) typeName.textContent = CHAR_TYPE_NAMES[ct] || 'Ouvrier';
   }
 
   // ----------------------------------------------------------
@@ -250,9 +309,21 @@ export class ScreenManager {
   _enterLobby() {
     document.getElementById('lobby-room-code').textContent =
       this.room.roomId || this.room.id || '???';
-    this.showScreen('lobby');
     this._setupRoomListeners();
-    this._refreshStage();
+    this._applyCheat(); // Re-send cheat if already unlocked
+
+    // Check if game is already in progress
+    const phase = this.room.state.phase;
+    if (phase === 'playing') {
+      this._startRealGame();
+    } else if (phase === 'tutorial') {
+      this.showScreen('game');
+      if (this.phaserGame) this.phaserGame.scene.start('TutorialScene', { room: this.room });
+      this.showTutorialCompris();
+    } else {
+      this.showScreen('lobby');
+      this._refreshStage();
+    }
   }
 
   _setupRoomListeners() {
@@ -323,14 +394,37 @@ export class ScreenManager {
         allReady = false;
       }
 
-      // Color
+      // Color + Type visual
       const color = PLAYER_COLORS_HEX[player.color] || PLAYER_COLORS_HEX[0];
-      slot.querySelector('.char-body').style.setProperty('--player-color', color);
-      slot.querySelector('.char-body').style.background = color;
+      const ct = player.characterType || 0;
+      const charBody = slot.querySelector('.char-body');
+      charBody.style.setProperty('--player-color', color);
+
+      if (ct === 1) {
+        // Ingenieur: white coat
+        charBody.style.background = '#ecf0f1';
+        charBody.style.clipPath = 'polygon(50% 0%, 95% 35%, 90% 100%, 10% 100%, 5% 35%)';
+      } else if (ct === 2) {
+        // Technicien: bulky vest
+        charBody.style.background = color;
+        charBody.style.clipPath = 'polygon(50% 0%, 100% 30%, 95% 100%, 5% 100%, 0% 30%)';
+      } else if (ct === 3) {
+        charBody.style.background = '#2c3e50';
+        charBody.style.clipPath = 'polygon(50% 0%, 95% 35%, 90% 100%, 10% 100%, 5% 35%)';
+        charBody.style.boxShadow = '';
+      } else if (ct === 4) {
+        charBody.style.background = '#0d0d1a';
+        charBody.style.clipPath = 'polygon(50% 0%, 98% 32%, 92% 100%, 8% 100%, 2% 32%)';
+        charBody.style.boxShadow = `0 0 12px ${color}, inset 0 0 8px ${color}40`;
+      } else {
+        charBody.style.background = color;
+        charBody.style.clipPath = 'polygon(50% 0%, 100% 35%, 85% 100%, 15% 100%, 0% 35%)';
+        charBody.style.boxShadow = '';
+      }
 
       // Name + type
       slot.querySelector('.stage-nickname').textContent = player.nickname || COLOR_NAMES[player.color];
-      slot.querySelector('.stage-type-label').textContent = CHAR_TYPE_NAMES[player.characterType] || '';
+      slot.querySelector('.stage-type-label').textContent = CHAR_TYPE_NAMES[ct] || '';
 
       // Cosmetics
       slot.querySelector('.char-hat').textContent = HAT_ICONS[player.hat] || '';
@@ -425,6 +519,41 @@ export class ScreenManager {
     t.textContent = `! ${EMERGENCY_LABELS[type] || type} !`;
     document.getElementById('hud-toasts').appendChild(t);
     setTimeout(() => t.remove(), 3000);
+  }
+
+  // ----------------------------------------------------------
+  //  Kill Feed
+  // ----------------------------------------------------------
+  addKillFeedEntry(data) {
+    const container = document.getElementById('hud-killfeed');
+    if (!container) return;
+    const entry = document.createElement('div');
+    entry.className = 'killfeed-entry ' + (data.type || 'special');
+    entry.textContent = data.text || '';
+    container.appendChild(entry);
+    // Max 5 visible
+    while (container.children.length > 5) container.firstChild.remove();
+    // Auto-remove after 4s
+    setTimeout(() => {
+      entry.style.opacity = '0';
+      setTimeout(() => entry.remove(), 400);
+    }, 4000);
+  }
+
+  // ----------------------------------------------------------
+  //  Power-Up HUD
+  // ----------------------------------------------------------
+  updatePowerUpHUD(type, timer) {
+    const el = document.getElementById('hud-powerup');
+    if (!type || timer <= 0) {
+      el.style.display = 'none';
+      return;
+    }
+    el.style.display = 'flex';
+    const icons = { speed: '⚡', shield: '🛡️', turbo_repair: '🔧', invisible: '👻' };
+    document.getElementById('hud-powerup-icon').textContent = icons[type] || '⭐';
+    document.getElementById('hud-powerup-name').textContent = type.replace('_', ' ');
+    document.getElementById('hud-powerup-timer').textContent = Math.ceil(timer) + 's';
   }
 
   showDisconnect() {

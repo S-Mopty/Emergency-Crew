@@ -53,6 +53,18 @@ body {
   width: 100vw;
 }
 
+/* --- Background Logo (watermark) --- */
+.bg-logo {
+  position: fixed;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  width: 60vmin; height: 60vmin;
+  background: url('logo.svg') center/contain no-repeat;
+  opacity: 0.03;
+  pointer-events: none;
+  z-index: 0;
+}
+
 /* --- Animated Grid Background --- */
 .grid-bg {
   position: fixed;
@@ -217,6 +229,14 @@ body {
 .menu-content {
   text-align: center;
   z-index: 1;
+}
+
+.menu-logo {
+  width: clamp(280px, 50vw, 550px);
+  height: auto;
+  margin-bottom: 8px;
+  filter: drop-shadow(0 0 20px rgba(255, 107, 107, 0.4));
+  animation: titlePulse 3s ease-in-out infinite;
 }
 
 .menu-title {
@@ -522,8 +542,21 @@ body {
   text-overflow: ellipsis; white-space: nowrap;
 }
 .stage-type-label {
-  font-size: 11px; color: var(--text-muted);
+  font-size: 11px; color: var(--text-accent);
   text-transform: uppercase; letter-spacing: 0.5px;
+  font-weight: 600;
+}
+
+/* Type-specific preview styling */
+.char-type-1 .preview-body::after {
+  content: ''; position: absolute; left: 50%; top: 20%;
+  transform: translateX(-50%); width: 4px; height: 40%;
+  background: var(--color-blue); border-radius: 2px;
+}
+.char-type-3 .preview-body::after {
+  content: ''; position: absolute; left: 50%; top: 25%;
+  transform: translateX(-50%); width: 3px; height: 35%;
+  background: #e74c3c; border-radius: 1px;
 }
 
 /* Lobby actions bar */
@@ -856,6 +889,52 @@ body {
   display: block;
   image-rendering: pixelated;
 }
+
+/* Kill Feed / Event Log */
+.hud-killfeed {
+  position: absolute;
+  top: 240px; right: 16px;
+  width: 260px;
+  display: flex; flex-direction: column;
+  gap: 4px; pointer-events: none;
+}
+.killfeed-entry {
+  font-size: 12px; font-family: var(--font-ui);
+  padding: 6px 10px; border-radius: 6px;
+  background: rgba(0,0,0,0.7);
+  backdrop-filter: blur(4px);
+  animation: kfSlide 0.3s ease-out;
+  transition: opacity 0.4s;
+}
+.killfeed-entry.kill { color: #ff6b6b; border-left: 3px solid #ff6b6b; }
+.killfeed-entry.repair { color: #2ecc71; border-left: 3px solid #2ecc71; }
+.killfeed-entry.powerup { color: #ffd93d; border-left: 3px solid #ffd93d; }
+.killfeed-entry.emergency { color: #f39c12; border-left: 3px solid #f39c12; }
+.killfeed-entry.special { color: #74b9ff; border-left: 3px solid #74b9ff; }
+@keyframes kfSlide {
+  from { transform: translateX(30px); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+/* Power-Up HUD Indicator */
+.hud-powerup {
+  position: absolute;
+  top: 54px; left: 20px;
+  display: flex; align-items: center; gap: 8px;
+  background: rgba(0,0,0,0.7);
+  backdrop-filter: blur(6px);
+  padding: 8px 14px;
+  border-radius: 20px;
+  border: 2px solid var(--text-accent);
+  animation: puPulse 1s ease-in-out infinite;
+}
+@keyframes puPulse {
+  0%, 100% { box-shadow: 0 0 8px rgba(255,217,61,0.3); }
+  50% { box-shadow: 0 0 16px rgba(255,217,61,0.6); }
+}
+.hud-powerup-icon { font-size: 20px; }
+.hud-powerup-name { font-size: 13px; font-weight: 700; color: var(--text-accent); text-transform: uppercase; }
+.hud-powerup-timer { font-size: 13px; font-weight: 700; color: var(--text-primary); font-family: var(--font-game); }
 
 /* Emergency Toast Notifications */
 .hud-toasts {

@@ -4,7 +4,7 @@
 // =============================================================================
 
 const { Room } = require("colyseus");
-const { GameState, Player, Machine, GameItem, Emergency } = require("./GameState");
+const { GameState, Player, Machine, GameItem, Emergency, PowerUp } = require("./GameState");
 const { MACHINES, ITEM_SPAWNS, PLAYER_SPAWNS, isWalkable } = require("./MapData");
 
 const COLOR_NAMES = ['Bleu', 'Rouge', 'Vert', 'Orange'];
@@ -24,17 +24,22 @@ const DASH_SPEED           = 8;     // tiles/s
 const DASH_DURATION        = 0.3;   // seconds
 const DASH_COOLDOWN        = 2;     // seconds
 const DASH_RADIUS          = 0.5;   // tiles (hit radius during dash)
+const LASER_RANGE          = 8;     // tiles (long range beam)
+const LASER_WIDTH          = 0.8;   // tiles (beam width)
+const LASER_COOLDOWN       = 5;     // seconds
+const LASER_STUN           = 2.5;   // seconds (longer stun)
+const LASER_KNOCKBACK      = 5;     // tiles (massive knockback)
 const STUN_DURATION        = 1.5;   // seconds (wrench hit)
 const KNOCKED_DURATION     = 2;     // seconds (dash knockdown)
 const REPAIR_DURATION      = 3;     // seconds to fully repair
 const REPAIR_RANGE         = 1.5;   // tiles
-const STABILITY_DRAIN      = 0.8;   // pts/s per active emergency (was 2)
-const STABILITY_REPAIR_BONUS = 12;  // pts restored on repair
-const EMERGENCY_INTERVAL_MIN = 18;  // seconds (was 15)
-const EMERGENCY_INTERVAL_MAX = 28;  // seconds (was 20)
-const MAX_ACTIVE_EMERGENCIES = 3;
+const STABILITY_DRAIN      = 0.5;   // pts/s per emergency (lent mais constant)
+const STABILITY_REPAIR_BONUS = 8;   // pts restored on repair
+const EMERGENCY_INTERVAL_MIN = 8;   // seconds (tres frequent)
+const EMERGENCY_INTERVAL_MAX = 14;  // seconds
+const MAX_ACTIVE_EMERGENCIES = 6;   // beaucoup d'urgences en meme temps
 const GAME_DURATION        = 300;   // seconds (5 minutes)
-const OVERHEAT_TIMEOUT     = 30;    // seconds before explosion
+const OVERHEAT_TIMEOUT     = 25;    // seconds before explosion
 const ITEM_RESPAWN_DELAY   = 5;     // seconds after consumption
 const AUTO_DISPOSE_DELAY   = 30;    // seconds after game ends
 const SCORE_MINOR_REPAIR   = 20;
@@ -43,6 +48,17 @@ const SCORE_KO             = 5;
 
 // Item types that can spawn, cycled through spawn points
 const ITEM_TYPES = ["welding_kit", "fuse", "coolant"];
+
+// Power-up system
+const POWERUP_TYPES = ["speed", "shield", "turbo_repair", "invisible", "shockwave"];
+const POWERUP_SPAWN_MIN = 20;    // seconds between spawns
+const POWERUP_SPAWN_MAX = 35;
+const POWERUP_LIFETIME  = 15;    // seconds before despawn
+const POWERUP_PICKUP_RANGE = 1.2;
+const POWERUP_DURATIONS = { speed: 8, shield: 6, turbo_repair: 10, invisible: 8, shockwave: 0 };
+const SHOCKWAVE_RADIUS  = 4;     // tiles
+const SHOCKWAVE_KNOCKBACK = 4;   // tiles
+const EMOTE_DURATION = 2.5;      // seconds
 
 class GameRoom extends Room {
 
@@ -62,6 +78,8 @@ class GameRoom extends Room {
     this.itemRespawnQueue = [];      // { spawnIndex, itemType, timer }
     this.dashStates = {};            // sessionId -> { timer, dx, dy }
     this.disposeTimeout = null;
+    this.powerUpIdCounter = 0;
+    this.nextPowerUpTimer = POWERUP_SPAWN_MIN + Math.random() * (POWERUP_SPAWN_MAX - POWERUP_SPAWN_MIN);
 
     // Spawn machines from map data
     this._initMachines();
@@ -100,12 +118,18 @@ class GameRoom extends Room {
     });
 
     this.onMessage("set_cosmetic", (client, data) => {
-      if (this.state.phase !== "waiting") return;
       const player = this.state.players.get(client.sessionId);
       if (!player) return;
+      // Character type 4 (secret) can be set anytime
+      if (typeof data.characterType === "number" && data.characterType === 4) {
+        player.characterType = data.characterType;
+        return;
+      }
+      // Other cosmetics only in waiting phase
+      if (this.state.phase !== "waiting") return;
       if (typeof data.hat === "number" && data.hat >= 0 && data.hat <= 3) player.hat = data.hat;
       if (typeof data.accessory === "number" && data.accessory >= 0 && data.accessory <= 3) player.accessory = data.accessory;
-      if (typeof data.characterType === "number" && data.characterType >= 0 && data.characterType <= 3) player.characterType = data.characterType;
+      if (typeof data.characterType === "number" && data.characterType >= 0 && data.characterType <= 4) player.characterType = data.characterType;
       player.ready = false;
     });
 
@@ -114,6 +138,16 @@ class GameRoom extends Room {
       const player = this.state.players.get(client.sessionId);
       if (!player) return;
       player.ready = !player.ready;
+    });
+
+    this.onMessage("emote", (client, data) => {
+      const player = this.state.players.get(client.sessionId);
+      if (!player) return;
+      const validEmotes = ["hello", "help", "follow", "ok"];
+      if (validEmotes.includes(data.type)) {
+        player.emote = data.type;
+        player.emoteTimer = EMOTE_DURATION;
+      }
     });
 
     this.onMessage("tutorial_ready", (client, _data) => {
@@ -240,6 +274,8 @@ class GameRoom extends Room {
     this._resolvePlayerCollisions();
     this._processPickups();
     this._processAttacks(dt);
+    this._processLaser(dt);
+    this._processAdminWeapons(dt);
     this._processDashInputs();
     this._processRepairs(dt);
     this._updateCarriedItems();
@@ -253,6 +289,14 @@ class GameRoom extends Room {
 
     // 5. Cooldowns
     this._updateCooldowns(dt);
+
+    // 6. Power-ups
+    this._tickPowerUpSpawner(dt);
+    this._processPowerUpPickups();
+    this._updatePowerUpEffects(dt);
+
+    // 7. Emotes
+    this._updateEmotes(dt);
   }
 
   // ===========================================================================
@@ -305,7 +349,8 @@ class GameRoom extends Room {
       const len = Math.sqrt(wx * wx + wy * wy);
 
       if (len > 0) {
-        const speed = input.sprint ? PLAYER_SPEED * SPRINT_MULTIPLIER : PLAYER_SPEED;
+        let speed = input.sprint ? PLAYER_SPEED * SPRINT_MULTIPLIER : PLAYER_SPEED;
+        if (player.powerUpType === "speed") speed *= 2.5;
         player.vx = (wx / len) * speed;
         player.vy = (wy / len) * speed;
       } else {
@@ -538,6 +583,164 @@ class GameRoom extends Room {
   }
 
   // ===========================================================================
+  //  Combat: Laser (secret weapon, type 4 only)
+  // ===========================================================================
+
+  _processLaser(dt) {
+    this.state.players.forEach((player, sid) => {
+      if (player.state !== "normal") return;
+      if (player.characterType !== 4) return; // secret type only
+      if (player.laserCooldown > 0) return;
+
+      const input = this.inputs[sid];
+      if (!input || !input.laser) return;
+      if (input._laserHandled) return;
+      input._laserHandled = true;
+
+      // Direction toward mouse cursor
+      let dx = (input.laserTargetX || 0) - player.x;
+      let dy = (input.laserTargetY || 0) - player.y;
+      const len = Math.sqrt(dx*dx + dy*dy);
+      if (len > 0.1) { dx /= len; dy /= len; }
+      else { dx = 1; dy = 0; }
+
+      player.laserCooldown = LASER_COOLDOWN;
+
+      // Beam: check all players along the line
+      const hits = [];
+      this.state.players.forEach((target, tid) => {
+        if (tid === sid) return;
+        if (target.state === "knocked" || target.state === "stunned") return;
+
+        // Project target onto laser line
+        const rx = target.x - player.x, ry = target.y - player.y;
+        const along = rx * dx + ry * dy; // distance along beam
+        if (along < 0 || along > LASER_RANGE) return;
+
+        const perpX = rx - along * dx, perpY = ry - along * dy;
+        const perpDist = Math.sqrt(perpX*perpX + perpY*perpY);
+        if (perpDist < LASER_WIDTH) {
+          hits.push({ target, tid, along });
+        }
+      });
+
+      // Apply hits to all in line
+      hits.forEach(({ target, tid }) => {
+        target.state = "stunned";
+        target.stateTimer = LASER_STUN;
+        // Massive knockback along beam direction (respects walls)
+        const lSteps = Math.ceil(LASER_KNOCKBACK * 2);
+        const lStep = LASER_KNOCKBACK / lSteps;
+        for (let s = 0; s < lSteps; s++) {
+          const nx = target.x + dx * lStep, ny = target.y + dy * lStep;
+          if (isWalkable(nx, ny)) { target.x = nx; target.y = ny; } else break;
+        }
+        player.score += SCORE_KO * 2; // double points
+        player.koCount++;
+
+        // Cancel repairs
+        if (target.repairTarget) {
+          const machine = this.state.machines.get(target.repairTarget);
+          if (machine) { machine.repairProgress = 0; machine.repairerId = ""; }
+          target.repairTarget = ""; target.repairProgress = 0;
+        }
+        if (target.carryingItemId) this._dropItem(target, tid);
+      });
+
+      // Broadcast laser visual
+      this.broadcast("laser_fired", {
+        playerId: sid,
+        fromX: player.x, fromY: player.y,
+        dx, dy, range: LASER_RANGE,
+        hits: hits.length,
+      });
+
+      console.log(`[GameRoom] LASER by ${sid}: ${hits.length} hits`);
+    });
+
+    // Reset laser handled flag
+    this.state.players.forEach((_, sid) => {
+      const input = this.inputs[sid];
+      if (input && !input.laser) input._laserHandled = false;
+    });
+  }
+
+  //  Admin Weapons (type 4 only): Nuke, Freeze, Teleport
+  // ===========================================================================
+
+  _processAdminWeapons(dt) {
+    this.state.players.forEach((player, sid) => {
+      if (player.characterType !== 4) return;
+      const input = this.inputs[sid];
+      if (!input) return;
+
+      // NUKE (C key) - Stun + massive knockback EVERYONE, 15s cooldown
+      if (input.nuke && !input._nukeHandled) {
+        input._nukeHandled = true;
+        if (!player._nukeCooldown || player._nukeCooldown <= 0) {
+          player._nukeCooldown = 15;
+          this.state.players.forEach((target, tid) => {
+            if (tid === sid) return;
+            target.state = "knocked";
+            target.stateTimer = 4;
+            target.vx = 0; target.vy = 0;
+            // Knockback away from nuker
+            const dx = target.x - player.x, dy = target.y - player.y;
+            const d = Math.sqrt(dx*dx + dy*dy) || 1;
+            const steps = 14;
+            for (let s = 0; s < steps; s++) {
+              const nx = target.x + (dx/d)*0.5, ny = target.y + (dy/d)*0.5;
+              if (isWalkable(nx, ny)) { target.x = nx; target.y = ny; } else break;
+            }
+            if (target.carryingItemId) this._dropItem(target, tid);
+            if (target.repairTarget) this._cancelRepair(target, tid);
+            player.koCount++;
+          });
+          player.score += 50;
+          this.broadcast("nuke_explode", { playerId: sid, x: player.x, y: player.y });
+          this.broadcast("game_event", { type: "special", text: `☢️ ${player.nickname || COLOR_NAMES[player.color]} a lance une BOMBE NUCLEAIRE !` });
+        }
+      }
+      if (!input.nuke) input._nukeHandled = false;
+      if (player._nukeCooldown > 0) player._nukeCooldown -= dt;
+
+      // FREEZE (V key) - Freeze ALL other players for 5s, 12s cooldown
+      if (input.freeze && !input._freezeHandled) {
+        input._freezeHandled = true;
+        if (!player._freezeCooldown || player._freezeCooldown <= 0) {
+          player._freezeCooldown = 12;
+          this.state.players.forEach((target, tid) => {
+            if (tid === sid) return;
+            target.state = "stunned";
+            target.stateTimer = 5;
+            target.vx = 0; target.vy = 0;
+          });
+          player.score += 30;
+          this.broadcast("freeze_blast", { playerId: sid });
+          this.broadcast("game_event", { type: "special", text: `🥶 ${player.nickname || COLOR_NAMES[player.color]} a GELE tout le monde !` });
+        }
+      }
+      if (!input.freeze) input._freezeHandled = false;
+      if (player._freezeCooldown > 0) player._freezeCooldown -= dt;
+
+      // TELEPORT (B key) - Teleport to mouse position
+      if (input.teleport && !input._tpHandled) {
+        input._tpHandled = true;
+        if (!player._tpCooldown || player._tpCooldown <= 0) {
+          player._tpCooldown = 3;
+          const tx = input.laserTargetX || player.x;
+          const ty = input.laserTargetY || player.y;
+          if (isWalkable(tx, ty)) {
+            player.x = tx; player.y = ty;
+            this.broadcast("game_event", { type: "special", text: `⚡ ${player.nickname || COLOR_NAMES[player.color]} s'est TELEPORTE !` });
+          }
+        }
+      }
+      if (!input.teleport) input._tpHandled = false;
+      if (player._tpCooldown > 0) player._tpCooldown -= dt;
+    });
+  }
+
   //  Combat: Dash (SHIFT)
   // ===========================================================================
 
@@ -623,6 +826,15 @@ class GameRoom extends Room {
   // ===========================================================================
 
   _applyHit(attacker, attackerId, target, targetId, stateType, stateDuration, knockback) {
+    // Shield blocks the hit
+    if (target.powerUpType === "shield") {
+      this.broadcast("game_event", { type: "special", text: `🛡️ ${target.nickname || COLOR_NAMES[target.color]} a bloque une attaque !` });
+      return;
+    }
+
+    // Kill feed
+    this.broadcast("game_event", { type: "kill", text: `🔨 ${attacker.nickname || COLOR_NAMES[attacker.color]} a assomme ${target.nickname || COLOR_NAMES[target.color]} !` });
+
     // Direction from attacker to target
     const dx = target.x - attacker.x;
     const dy = target.y - attacker.y;
@@ -635,9 +847,19 @@ class GameRoom extends Room {
       nx = 1; ny = 0; // fallback direction
     }
 
-    // Apply knockback (instant teleport in push direction)
-    target.x += nx * knockback;
-    target.y += ny * knockback;
+    // Apply knockback step by step (respects walls)
+    const steps = Math.ceil(knockback * 2);
+    const stepSize = knockback / steps;
+    for (let i = 0; i < steps; i++) {
+      const newX = target.x + nx * stepSize;
+      const newY = target.y + ny * stepSize;
+      if (isWalkable(newX, newY)) {
+        target.x = newX;
+        target.y = newY;
+      } else {
+        break; // Stop at wall
+      }
+    }
 
     // Set target state
     target.state = stateType;
@@ -707,8 +929,9 @@ class GameRoom extends Room {
           return;
         }
 
-        // Progress the repair
-        player.repairProgress += dt / REPAIR_DURATION;
+        // Progress the repair (turbo = 3x faster)
+        const repairSpeed = player.powerUpType === "turbo_repair" ? 3 : 1;
+        player.repairProgress += (dt / REPAIR_DURATION) * repairSpeed;
         machine.repairProgress = player.repairProgress;
 
         if (player.repairProgress >= 1) {
@@ -818,6 +1041,7 @@ class GameRoom extends Room {
     player.repairProgress = 0;
 
     this.broadcast("repair_complete", { playerId: sid, machineId, points });
+    this.broadcast("game_event", { type: "repair", text: `✅ ${player.nickname || COLOR_NAMES[player.color]} a repare +${points} pts !` });
     console.log(`[GameRoom] Repair complete: ${sid} fixed ${machineId} (+${points} pts)`);
   }
 
@@ -977,6 +1201,124 @@ class GameRoom extends Room {
       if (player.dashCooldown > 0) {
         player.dashCooldown = Math.max(0, player.dashCooldown - dt);
       }
+      if (player.laserCooldown > 0) {
+        player.laserCooldown = Math.max(0, player.laserCooldown - dt);
+      }
+    });
+  }
+
+  // ===========================================================================
+  //  Power-Up System
+  // ===========================================================================
+
+  _tickPowerUpSpawner(dt) {
+    this.nextPowerUpTimer -= dt;
+    if (this.nextPowerUpTimer <= 0) {
+      this._spawnPowerUp();
+      this.nextPowerUpTimer = POWERUP_SPAWN_MIN + Math.random() * (POWERUP_SPAWN_MAX - POWERUP_SPAWN_MIN);
+    }
+    // Despawn expired power-ups
+    this.state.powerUps.forEach((pu, id) => {
+      if (!pu.active) return;
+      pu.lifeTimer -= dt;
+      if (pu.lifeTimer <= 0) {
+        this.state.powerUps.delete(id);
+      }
+    });
+  }
+
+  _spawnPowerUp() {
+    // Find random walkable tile
+    const { MAP_TILES, MAP_W, MAP_H } = require("./MapData");
+    let attempts = 0;
+    while (attempts < 50) {
+      const x = Math.floor(Math.random() * MAP_W);
+      const y = Math.floor(Math.random() * MAP_H);
+      if (MAP_TILES[y] && MAP_TILES[y][x] > 0) {
+        const pu = new PowerUp();
+        pu.x = x + 0.5;
+        pu.y = y + 0.5;
+        pu.powerType = POWERUP_TYPES[Math.floor(Math.random() * POWERUP_TYPES.length)];
+        pu.active = true;
+        pu.lifeTimer = POWERUP_LIFETIME;
+        const id = `pu_${++this.powerUpIdCounter}`;
+        this.state.powerUps.set(id, pu);
+        this.broadcast("game_event", { type: "powerup", text: `⭐ Un bonus ${pu.powerType.toUpperCase()} est apparu !` });
+        return;
+      }
+      attempts++;
+    }
+  }
+
+  _processPowerUpPickups() {
+    this.state.players.forEach((player, sid) => {
+      if (player.state !== "normal") return;
+
+      this.state.powerUps.forEach((pu, puId) => {
+        if (!pu.active) return;
+        const d = Math.hypot(player.x - pu.x, player.y - pu.y);
+        if (d < POWERUP_PICKUP_RANGE) {
+          pu.active = false;
+          this.state.powerUps.delete(puId);
+
+          if (pu.powerType === "shockwave") {
+            // Instant effect: knockback everyone nearby
+            this.state.players.forEach((target, tid) => {
+              if (tid === sid) return;
+              const td = Math.hypot(target.x - player.x, target.y - player.y);
+              if (td < SHOCKWAVE_RADIUS) {
+                const nx = (target.x - player.x) / (td || 1);
+                const ny = (target.y - player.y) / (td || 1);
+                const steps = Math.ceil(SHOCKWAVE_KNOCKBACK * 2);
+                const step = SHOCKWAVE_KNOCKBACK / steps;
+                for (let s = 0; s < steps; s++) {
+                  const newX = target.x + nx * step, newY = target.y + ny * step;
+                  if (isWalkable(newX, newY)) { target.x = newX; target.y = newY; } else break;
+                }
+                target.state = "stunned"; target.stateTimer = 1.5;
+                if (target.carryingItemId) this._dropItem(target, tid);
+              }
+            });
+            this.broadcast("shockwave", { x: player.x, y: player.y, playerId: sid });
+            this.broadcast("game_event", { type: "powerup", text: `💥 ${player.nickname || COLOR_NAMES[player.color]} a declenche une SHOCKWAVE !` });
+          } else {
+            // Timed buff
+            player.powerUpType = pu.powerType;
+            player.powerUpTimer = POWERUP_DURATIONS[pu.powerType] || 8;
+            this.broadcast("game_event", { type: "powerup", text: `⚡ ${player.nickname || COLOR_NAMES[player.color]} a ramasse ${pu.powerType.toUpperCase()} !` });
+          }
+
+          player.score += 10;
+        }
+      });
+    });
+  }
+
+  _updatePowerUpEffects(dt) {
+    this.state.players.forEach((player) => {
+      if (player.powerUpTimer > 0) {
+        player.powerUpTimer -= dt;
+        if (player.powerUpTimer <= 0) {
+          player.powerUpType = "";
+          player.powerUpTimer = 0;
+        }
+      }
+    });
+  }
+
+  // ===========================================================================
+  //  Emote System
+  // ===========================================================================
+
+  _updateEmotes(dt) {
+    this.state.players.forEach((player) => {
+      if (player.emoteTimer > 0) {
+        player.emoteTimer -= dt;
+        if (player.emoteTimer <= 0) {
+          player.emote = "";
+          player.emoteTimer = 0;
+        }
+      }
     });
   }
 
@@ -1051,10 +1393,13 @@ class GameRoom extends Room {
     this.itemIdCounter = 0;
     this._spawnInitialItems();
 
-    // Reset emergencies
+    // Reset emergencies + powerups
     this.state.emergencies.clear();
     this.emergencyIdCounter = 0;
     this.itemRespawnQueue = [];
+    this.state.powerUps.clear();
+    this.powerUpIdCounter = 0;
+    this.nextPowerUpTimer = POWERUP_SPAWN_MIN;
 
     // Reset game state
     this.state.stability = 100;

@@ -11,7 +11,8 @@
 </head>
 <body>
 
-  <!-- Animated grid background -->
+  <!-- Background -->
+  <div class="bg-logo"></div>
   <div class="grid-bg"></div>
 
   <!-- ============================================================
@@ -19,7 +20,7 @@
        ============================================================ -->
   <section id="screen-menu" class="screen screen--active">
     <div class="menu-content">
-      <h1 class="menu-title">EMERGENCY CREW</h1>
+      <img src="logo.svg" alt="Emergency Crew" class="menu-logo">
       <p class="menu-subtitle">Survie Cooperative</p>
 
       <div class="menu-panels">
@@ -217,6 +218,16 @@
         <canvas id="minimap" width="210" height="168"></canvas>
       </div>
 
+      <!-- Kill Feed / Event Log -->
+      <div class="hud-killfeed" id="hud-killfeed"></div>
+
+      <!-- Active Power-Up Indicator -->
+      <div class="hud-powerup" id="hud-powerup" style="display:none;">
+        <span class="hud-powerup-icon" id="hud-powerup-icon"></span>
+        <span class="hud-powerup-name" id="hud-powerup-name"></span>
+        <span class="hud-powerup-timer" id="hud-powerup-timer"></span>
+      </div>
+
       <!-- Emergency Toasts -->
       <div class="hud-toasts" id="hud-toasts"></div>
 
@@ -224,7 +235,7 @@
       <div class="hud-bottom">
         <div class="hud-carried empty" id="hud-carried">Objet : aucun</div>
         <div class="hud-emergencies" id="hud-emergencies"></div>
-        <div class="hud-controls">ZQSD:Bouger &nbsp; MAJ:Courir &nbsp; F:Dash &nbsp; E:Ramasser &nbsp; ESPACE:Frapper &nbsp; R:Reparer</div>
+        <div class="hud-controls">ZQSD:Bouger &nbsp; MAJ:Courir &nbsp; F:Dash &nbsp; E:Ramasser &nbsp; ESPACE:Frapper &nbsp; R:Reparer &nbsp; 1-4:Emotes</div>
       </div>
 
       <!-- Tutorial "Compris" overlay -->
@@ -298,6 +309,38 @@
   </section>
 
   <!-- Scripts -->
+  <!-- Music -->
+  <audio id="music-menu" src="Heavy_Gate_Closing.mp3" loop preload="auto"></audio>
+  <audio id="music-game" src="Pressure_Point.mp3" loop preload="auto"></audio>
+  <script>
+    // Music system: menu vs game tracks
+    window._musicStarted = false;
+    window.switchMusic = function(track) {
+      const menu = document.getElementById('music-menu');
+      const game = document.getElementById('music-game');
+      if (!menu || !game) return;
+
+      if (track === 'game') {
+        menu.pause();
+        game.volume = 0.3;
+        // Sync position to UTC
+        if (game.duration > 0) game.currentTime = (Date.now()/1000) % game.duration;
+        game.play().catch(()=>{});
+      } else {
+        game.pause();
+        menu.volume = 0.25;
+        if (menu.duration > 0) menu.currentTime = (Date.now()/1000) % menu.duration;
+        menu.play().catch(()=>{});
+      }
+    };
+    // Start menu music on first click
+    document.addEventListener('click', function startMusic() {
+      if (window._musicStarted) return;
+      window._musicStarted = true;
+      window.switchMusic('menu');
+    }, { once: false });
+  </script>
+
   <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
   <script src="https://unpkg.com/colyseus.js@0.15.25/dist/colyseus.js"></script>
   <script type="module" src="js/main.js"></script>

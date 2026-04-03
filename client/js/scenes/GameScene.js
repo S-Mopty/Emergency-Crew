@@ -99,6 +99,7 @@ export class GameScene extends Phaser.Scene {
   init(data) {
     this.room = data.room || null;
     this.playerSprites = {}; this.machineSprites = {}; this.itemSprites = {};
+    this.powerUpSprites = {};
     this.localSessionId = this.room ? this.room.sessionId : null;
     this._minimapDrawn = false;
   }
@@ -130,6 +131,7 @@ export class GameScene extends Phaser.Scene {
     this._drawDecorations();
     this._drawRoomLabels();
     this._setupInput();
+    this._setupEmoteInput();
     this._createEffectLayers();
     this._drawMinimapBase();
 
@@ -142,33 +144,195 @@ export class GameScene extends Phaser.Scene {
   }
 
   // ----------------------------------------------------------
-  //  Player Textures (detailed worker sprites)
+  //  Player Textures (4 types × 4 colors = 16 textures)
+  //  Type 0: Ouvrier  - casque jaune, combinaison, cle a molette
+  //  Type 1: Ingenieur - lunettes, blouse longue, clipboard
+  //  Type 2: Technicien - casque lourd, gilet, ceinture outils
+  //  Type 3: Chef - cravate, cheveux, dossier
   // ----------------------------------------------------------
   _genPlayerTextures() {
-    PLAYER_COLORS.forEach((color, i) => {
-      const key = `player_${i}`;
-      if (this.textures.exists(key)) return;
-      const g = this.make.graphics({ add: false });
-      const w = 48, h = 72;
-      // Shadow
-      g.fillStyle(0x000000, 0.3); g.fillEllipse(w/2, h-4, 32, 14);
-      // Boots
-      g.fillStyle(0x2d3436);
-      g.fillRoundedRect(w/2-10, h-16, 8, 12, 2); g.fillRoundedRect(w/2+2, h-16, 8, 12, 2);
-      // Legs
-      g.fillStyle(0x636e72); g.fillRect(w/2-8, h-28, 6, 14); g.fillRect(w/2+2, h-28, 6, 14);
-      // Body
-      g.fillStyle(color);
-      g.beginPath(); g.moveTo(w/2,18); g.lineTo(w-6,h*0.42); g.lineTo(w/2,h-26); g.lineTo(6,h*0.42); g.closePath(); g.fillPath();
-      g.lineStyle(2, 0xffffff, 0.3); g.strokePath();
-      // Belt + Head + Hat + Eyes + Tool
-      g.fillStyle(0x2d3436); g.fillRect(w/2-14, h-30, 28, 4);
-      g.fillStyle(0xffeaa7); g.fillCircle(w/2, 16, 9);
-      g.fillStyle(0xf1c40f); g.fillRoundedRect(w/2-11, 5, 22, 10, 3); g.fillRect(w/2-13, 12, 26, 3);
-      g.fillStyle(0x2d3436); g.fillCircle(w/2-3, 16, 1.5); g.fillCircle(w/2+3, 16, 1.5);
-      g.fillStyle(0x95a5a6); g.fillRect(w-10, h*0.42, 3, 12);
-      g.generateTexture(key, w, h); g.destroy();
-    });
+    const w = 48, h = 72;
+
+    for (let t = 0; t < 5; t++) {
+      PLAYER_COLORS.forEach((color, ci) => {
+        const key = `player_${ci}_${t}`;
+        if (this.textures.exists(key)) return;
+        const g = this.make.graphics({ add: false });
+
+        // Shadow
+        g.fillStyle(0x000000, 0.3); g.fillEllipse(w/2, h-4, 32, 14);
+
+        if (t === 0) this._drawWorker(g, w, h, color);
+        else if (t === 1) this._drawEngineer(g, w, h, color);
+        else if (t === 2) this._drawTechnician(g, w, h, color);
+        else if (t === 3) this._drawBoss(g, w, h, color);
+        else this._drawSecret(g, w, h, color);
+
+        g.generateTexture(key, w, h); g.destroy();
+      });
+    }
+
+  }
+
+  // Type 0: Ouvrier - hard hat, overalls, wrench
+  _drawWorker(g, w, h, color) {
+    // Boots
+    g.fillStyle(0x2d3436);
+    g.fillRoundedRect(w/2-10, h-16, 8, 12, 2); g.fillRoundedRect(w/2+2, h-16, 8, 12, 2);
+    // Legs
+    g.fillStyle(0x636e72); g.fillRect(w/2-8, h-28, 6, 14); g.fillRect(w/2+2, h-28, 6, 14);
+    // Body (diamond)
+    g.fillStyle(color);
+    g.beginPath(); g.moveTo(w/2,18); g.lineTo(w-6,h*0.42); g.lineTo(w/2,h-26); g.lineTo(6,h*0.42); g.closePath(); g.fillPath();
+    g.lineStyle(2, 0xffffff, 0.3); g.strokePath();
+    // Belt
+    g.fillStyle(0x2d3436); g.fillRect(w/2-14, h-30, 28, 4);
+    // Head
+    g.fillStyle(0xffeaa7); g.fillCircle(w/2, 16, 9);
+    // Hard hat (yellow)
+    g.fillStyle(0xf1c40f); g.fillRoundedRect(w/2-11, 5, 22, 10, 3); g.fillRect(w/2-13, 12, 26, 3);
+    // Eyes
+    g.fillStyle(0x2d3436); g.fillCircle(w/2-3, 16, 1.5); g.fillCircle(w/2+3, 16, 1.5);
+    // Wrench on belt
+    g.fillStyle(0x95a5a6); g.fillRect(w-10, h*0.42, 3, 12);
+  }
+
+  // Type 1: Ingenieur - glasses, long coat, clipboard
+  _drawEngineer(g, w, h, color) {
+    // Shoes (brown)
+    g.fillStyle(0x795548);
+    g.fillRoundedRect(w/2-9, h-14, 7, 10, 2); g.fillRoundedRect(w/2+2, h-14, 7, 10, 2);
+    // Legs (dark pants)
+    g.fillStyle(0x2d3436); g.fillRect(w/2-7, h-26, 5, 14); g.fillRect(w/2+2, h-26, 5, 14);
+    // Long coat body (wider, goes lower)
+    g.fillStyle(0xecf0f1);
+    g.beginPath(); g.moveTo(w/2,20); g.lineTo(w-4,h*0.40); g.lineTo(w-6,h-22); g.lineTo(6,h-22); g.lineTo(4,h*0.40); g.closePath(); g.fillPath();
+    // Color accent stripe
+    g.fillStyle(color); g.fillRect(w/2-2, 22, 4, h*0.42-22);
+    // Coat border
+    g.lineStyle(1, 0xbdc3c7, 0.5);
+    g.beginPath(); g.moveTo(w/2,20); g.lineTo(w-4,h*0.40); g.lineTo(w-6,h-22); g.lineTo(6,h-22); g.lineTo(4,h*0.40); g.closePath(); g.strokePath();
+    // Head
+    g.fillStyle(0xffeaa7); g.fillCircle(w/2, 16, 9);
+    // Hair (brown, side part)
+    g.fillStyle(0x6d4c41); g.fillRoundedRect(w/2-10, 5, 20, 8, 4);
+    // Glasses
+    g.lineStyle(2, 0x2d3436, 0.8);
+    g.strokeCircle(w/2-4, 15, 4); g.strokeCircle(w/2+4, 15, 4);
+    g.lineBetween(w/2-0.5, 15, w/2+0.5, 15);
+    // Eyes behind glasses
+    g.fillStyle(0x2d3436); g.fillCircle(w/2-4, 15, 1); g.fillCircle(w/2+4, 15, 1);
+    // Clipboard
+    g.fillStyle(0x795548); g.fillRect(2, h*0.38, 8, 12);
+    g.fillStyle(0xecf0f1); g.fillRect(3, h*0.38+1, 6, 10);
+  }
+
+  // Type 2: Technicien - heavy helmet, vest, tool belt
+  _drawTechnician(g, w, h, color) {
+    // Heavy boots
+    g.fillStyle(0x1a1a2e);
+    g.fillRoundedRect(w/2-11, h-18, 9, 14, 2); g.fillRoundedRect(w/2+2, h-18, 9, 14, 2);
+    // Legs (cargo pants)
+    g.fillStyle(0x4a4a5a); g.fillRect(w/2-9, h-30, 7, 14); g.fillRect(w/2+2, h-30, 7, 14);
+    // Cargo pockets
+    g.fillStyle(0x3a3a4a); g.fillRect(w/2-9, h-24, 4, 5); g.fillRect(w/2+5, h-24, 4, 5);
+    // Bulky vest body
+    g.fillStyle(color);
+    g.beginPath(); g.moveTo(w/2,16); g.lineTo(w-3,h*0.40); g.lineTo(w-5,h-28); g.lineTo(5,h-28); g.lineTo(3,h*0.40); g.closePath(); g.fillPath();
+    // Vest outline
+    g.lineStyle(2, 0xffffff, 0.2); g.strokePath();
+    // Reflective strips
+    g.fillStyle(0xf1c40f); g.fillRect(6, h*0.36, w-12, 3); g.fillRect(6, h*0.36+8, w-12, 3);
+    // Heavy tool belt
+    g.fillStyle(0x2d3436); g.fillRect(w/2-16, h-32, 32, 5);
+    // Tool pouches
+    g.fillStyle(0x636e72); g.fillRect(w/2-16, h-32, 6, 8); g.fillRect(w/2+10, h-32, 6, 8);
+    // Head
+    g.fillStyle(0xffeaa7); g.fillCircle(w/2, 14, 9);
+    // Heavy helmet (orange)
+    g.fillStyle(0xe67e22); g.fillRoundedRect(w/2-12, 2, 24, 12, 4);
+    g.fillRect(w/2-14, 10, 28, 4);
+    // Visor
+    g.fillStyle(0x2980b9); g.fillRoundedRect(w/2-8, 6, 16, 5, 2);
+    // Eyes
+    g.fillStyle(0x2d3436); g.fillCircle(w/2-3, 15, 1.5); g.fillCircle(w/2+3, 15, 1.5);
+  }
+
+  // Type 4: AGENT SECRET - dark armor, glowing visor, energy aura
+  _drawSecret(g, w, h, color) {
+    // Shadow (larger, glowing)
+    g.fillStyle(color, 0.15); g.fillEllipse(w/2, h-3, 36, 16);
+    // Armored boots
+    g.fillStyle(0x1a1a2e);
+    g.fillRoundedRect(w/2-11, h-18, 9, 14, 3); g.fillRoundedRect(w/2+2, h-18, 9, 14, 3);
+    // Energy lines on boots
+    g.fillStyle(color); g.fillRect(w/2-8, h-10, 3, 6); g.fillRect(w/2+5, h-10, 3, 6);
+    // Armored legs
+    g.fillStyle(0x1a1a2e); g.fillRect(w/2-9, h-30, 7, 14); g.fillRect(w/2+2, h-30, 7, 14);
+    // Body armor (angular, aggressive)
+    g.fillStyle(0x0d0d1a);
+    g.beginPath(); g.moveTo(w/2,14); g.lineTo(w-2,h*0.38); g.lineTo(w-4,h-28); g.lineTo(4,h-28); g.lineTo(2,h*0.38); g.closePath(); g.fillPath();
+    // Armor plates
+    g.lineStyle(1, color, 0.6);
+    g.lineBetween(w/2, 16, w/2, h-30);
+    g.lineBetween(6, h*0.38, w-6, h*0.38);
+    // Shoulder pads
+    g.fillStyle(0x1a1a2e);
+    g.fillRoundedRect(1, h*0.32, 10, 8, 3); g.fillRoundedRect(w-11, h*0.32, 10, 8, 3);
+    g.fillStyle(color);
+    g.fillRect(3, h*0.32+2, 6, 2); g.fillRect(w-9, h*0.32+2, 6, 2);
+    // Energy core on chest
+    g.fillStyle(color); g.fillCircle(w/2, h*0.38-2, 4);
+    g.fillStyle(0xffffff, 0.5); g.fillCircle(w/2, h*0.38-2, 2);
+    // Helmet
+    g.fillStyle(0x0d0d1a);
+    g.fillRoundedRect(w/2-12, 3, 24, 18, 6);
+    // Visor (glowing)
+    g.fillStyle(color);
+    g.fillRoundedRect(w/2-9, 10, 18, 6, 3);
+    g.fillStyle(0xffffff, 0.4);
+    g.fillRoundedRect(w/2-7, 11, 14, 3, 2);
+    // Antenna
+    g.fillStyle(color); g.fillRect(w/2+8, 2, 2, 8);
+    g.fillCircle(w/2+9, 2, 2);
+    // Arm weapon
+    g.fillStyle(0x2d2d4e); g.fillRect(w-8, h*0.38, 6, 16);
+    g.fillStyle(color); g.fillRect(w-7, h*0.38+14, 4, 4);
+  }
+
+  // Type 3: Chef - tie, hair, folder
+  _drawBoss(g, w, h, color) {
+    // Dress shoes
+    g.fillStyle(0x1a1a1a);
+    g.fillRoundedRect(w/2-9, h-14, 7, 10, 2); g.fillRoundedRect(w/2+2, h-14, 7, 10, 2);
+    // Suit pants
+    g.fillStyle(0x2c3e50); g.fillRect(w/2-7, h-26, 5, 14); g.fillRect(w/2+2, h-26, 5, 14);
+    // Suit jacket body
+    g.fillStyle(0x2c3e50);
+    g.beginPath(); g.moveTo(w/2,20); g.lineTo(w-5,h*0.40); g.lineTo(w-6,h-24); g.lineTo(6,h-24); g.lineTo(5,h*0.40); g.closePath(); g.fillPath();
+    // Jacket lapels
+    g.fillStyle(color);
+    g.beginPath(); g.moveTo(w/2,20); g.lineTo(w/2+6,h*0.35); g.lineTo(w/2+2,h*0.42); g.lineTo(w/2-2,h*0.42); g.lineTo(w/2-6,h*0.35); g.closePath(); g.fillPath();
+    // Shirt & tie
+    g.fillStyle(0xecf0f1); g.fillRect(w/2-3, 20, 6, h*0.42-20);
+    g.fillStyle(0xe74c3c); g.fillRect(w/2-1.5, 22, 3, h*0.42-24);
+    // Jacket outline
+    g.lineStyle(1, 0x1a252f, 0.5);
+    g.beginPath(); g.moveTo(w/2,20); g.lineTo(w-5,h*0.40); g.lineTo(w-6,h-24); g.lineTo(6,h-24); g.lineTo(5,h*0.40); g.closePath(); g.strokePath();
+    // Head
+    g.fillStyle(0xffeaa7); g.fillCircle(w/2, 16, 9);
+    // Styled hair
+    g.fillStyle(0x2d3436);
+    g.beginPath(); g.moveTo(w/2-9, 14); g.lineTo(w/2-7, 5); g.lineTo(w/2+8, 5); g.lineTo(w/2+10, 10); g.lineTo(w/2+7, 8); g.closePath(); g.fillPath();
+    // Eyes
+    g.fillStyle(0x2d3436); g.fillCircle(w/2-3, 16, 1.5); g.fillCircle(w/2+3, 16, 1.5);
+    // Confident smile
+    g.lineStyle(1, 0x2d3436, 0.6);
+    g.beginPath(); g.arc(w/2, 19, 3, 0.2, Math.PI-0.2); g.strokePath();
+    // Folder/clipboard
+    g.fillStyle(color); g.fillRoundedRect(w-12, h*0.36, 10, 14, 2);
+    g.fillStyle(0xecf0f1); g.fillRect(w-11, h*0.36+2, 8, 2);
+    g.fillRect(w-11, h*0.36+5, 6, 1); g.fillRect(w-11, h*0.36+7, 7, 1);
   }
 
   // ----------------------------------------------------------
@@ -246,6 +410,10 @@ export class GameScene extends Phaser.Scene {
     this.pickupKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.E);
     this.attackKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
     this.repairKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.R);
+    this.laserKey  = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.X);
+    this.nukeKey   = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.C);
+    this.freezeKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.V);
+    this.teleportKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.B);
   }
 
   // ----------------------------------------------------------
@@ -269,6 +437,18 @@ export class GameScene extends Phaser.Scene {
       if (window.screenManager) window.screenManager.showEmergencyToast(data.type);
     });
     room.onMessage('repair_complete', (data) => this._showRepairEffect(data));
+    room.onMessage('laser_fired', (data) => this._showLaserBeam(data));
+    room.onMessage('game_event', (data) => {
+      if (window.screenManager) window.screenManager.addKillFeedEntry(data);
+    });
+    room.onMessage('shockwave', (data) => this._showShockwave(data));
+    room.onMessage('nuke_explode', (data) => this._showNuke(data));
+    room.onMessage('freeze_blast', (data) => this._showFreeze(data));
+
+    // Power-ups
+    room.state.powerUps.onAdd((pu, id) => this._addPowerUp(pu, id));
+    room.state.powerUps.onRemove((_, id) => this._removePowerUp(id));
+
     room.onLeave(() => { this.room = null; if (window.screenManager) window.screenManager.showDisconnect(); });
   }
 
@@ -278,7 +458,13 @@ export class GameScene extends Phaser.Scene {
   _addPlayer(player, sid) {
     const isLocal = sid === this.localSessionId;
     const ci = player.color ?? 0;
-    const sprite = this.add.image(0, 0, `player_${ci}`).setOrigin(0.5, 0.9);
+    const ct = player.characterType ?? 0;
+    const sprite = this.add.image(0, 0, `player_${ci}_${ct}`).setOrigin(0.5, 0.9);
+    // Update sprite on characterType change
+    player.listen('characterType', (val) => {
+      const texKey = `player_${player.color ?? 0}_${val ?? 0}`;
+      if (this.textures.exists(texKey)) sprite.setTexture(texKey);
+    });
     const name = isLocal ? 'VOUS' : (player.nickname || PLAYER_NAMES[ci]);
     const label = this.add.text(0, 0, name, {
       fontSize:'14px', fontFamily:'Inter, sans-serif', fontStyle:'bold',
@@ -395,6 +581,108 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  _showLaserBeam(data) {
+    const { fromX, fromY, dx, dy, range } = data;
+    const start = worldToScreen(fromX, fromY);
+    const endX = fromX + dx * range, endY = fromY + dy * range;
+    const end = worldToScreen(endX, endY);
+    const sx = start.x + this.camOX, sy = start.y + this.camOY - 25;
+    const ex = end.x + this.camOX, ey = end.y + this.camOY - 25;
+
+    const pd = this.playerSprites[data.playerId];
+    const color = pd ? PLAYER_COLORS[pd.player.color ?? 0] : 0xff0000;
+
+    // === SCREEN FLASH (white then colored) ===
+    const screenFlash = this.add.graphics().setDepth(9999).setScrollFactor(0);
+    screenFlash.fillStyle(0xffffff, 0.4); screenFlash.fillRect(0, 0, 1920, 1080);
+    this.tweens.add({ targets: screenFlash, alpha: 0, duration: 300, onComplete: () => screenFlash.destroy() });
+
+    // === MASSIVE SCREEN SHAKE ===
+    this.cameras.main.shake(400, 0.012);
+
+    // === OUTER GLOW (huge, soft) ===
+    const glow = this.add.graphics().setDepth(9598);
+    glow.lineStyle(40, color, 0.15); glow.lineBetween(sx, sy, ex, ey);
+    glow.lineStyle(28, color, 0.25); glow.lineBetween(sx, sy, ex, ey);
+
+    // === MAIN BEAM (thick colored) ===
+    const beam = this.add.graphics().setDepth(9600);
+    beam.lineStyle(14, color, 0.9); beam.lineBetween(sx, sy, ex, ey);
+    // Inner bright core
+    beam.lineStyle(6, 0xffffff, 0.9); beam.lineBetween(sx, sy, ex, ey);
+    // Extra thin white center
+    beam.lineStyle(2, 0xffffff, 1); beam.lineBetween(sx, sy, ex, ey);
+
+    // === MUZZLE FLASH (big burst at shooter) ===
+    const muzzle = this.add.graphics().setDepth(9601);
+    muzzle.fillStyle(0xffffff, 0.9); muzzle.fillCircle(sx, sy, 24);
+    muzzle.fillStyle(color, 0.6); muzzle.fillCircle(sx, sy, 36);
+    // Muzzle rays
+    for (let i = 0; i < 8; i++) {
+      const a = (Math.PI * 2 / 8) * i;
+      const rx = Math.cos(a) * 30, ry = Math.sin(a) * 30;
+      muzzle.lineStyle(3, 0xffffff, 0.7); muzzle.lineBetween(sx, sy, sx + rx, sy + ry);
+    }
+
+    // === IMPACT EXPLOSION (big burst at end) ===
+    const impact = this.add.graphics().setDepth(9601);
+    impact.fillStyle(color, 0.7); impact.fillCircle(ex, ey, 30);
+    impact.fillStyle(0xffffff, 0.5); impact.fillCircle(ex, ey, 16);
+    // Impact ring
+    impact.lineStyle(4, 0xffffff, 0.6); impact.strokeCircle(ex, ey, 40);
+
+    // === SPARKS along beam (lots of particles) ===
+    for (let i = 0; i < 20; i++) {
+      const t = Math.random();
+      const px = sx + (ex - sx) * t + (Math.random() - 0.5) * 20;
+      const py = sy + (ey - sy) * t + (Math.random() - 0.5) * 20;
+      const spark = this.add.graphics().setDepth(9602);
+      const sparkColor = Math.random() > 0.5 ? color : 0xffffff;
+      const size = 2 + Math.random() * 4;
+      spark.fillStyle(sparkColor, 0.9); spark.fillCircle(px, py, size);
+      this.tweens.add({
+        targets: spark,
+        x: (Math.random() - 0.5) * 60,
+        y: -30 - Math.random() * 40,
+        alpha: 0, duration: 500 + Math.random() * 400,
+        ease: 'Cubic.easeOut',
+        onComplete: () => spark.destroy(),
+      });
+    }
+
+    // === IMPACT SPARKS at end point ===
+    for (let i = 0; i < 12; i++) {
+      const a = (Math.PI * 2 / 12) * i + Math.random() * 0.3;
+      const dist = 20 + Math.random() * 30;
+      const impSpark = this.add.graphics().setDepth(9603);
+      impSpark.fillStyle(color); impSpark.fillCircle(ex, ey, 3);
+      this.tweens.add({
+        targets: impSpark,
+        x: Math.cos(a) * dist, y: Math.sin(a) * dist,
+        alpha: 0, duration: 600,
+        ease: 'Cubic.easeOut',
+        onComplete: () => impSpark.destroy(),
+      });
+    }
+
+    // === BEAM TEXT "LASER" floating ===
+    const laserText = this.add.text((sx + ex) / 2, (sy + ey) / 2 - 30, 'LASER', {
+      fontSize: '22px', fontFamily: 'Inter, sans-serif', fontStyle: '900',
+      color: '#ffffff', stroke: '#000', strokeThickness: 4,
+    }).setOrigin(0.5).setDepth(9605);
+    this.tweens.add({ targets: laserText, y: laserText.y - 40, alpha: 0, duration: 800, onComplete: () => laserText.destroy() });
+
+    // === FADE OUT all beam elements (longer = more visible) ===
+    this.tweens.add({
+      targets: [beam, glow], alpha: 0, duration: 600, delay: 200,
+      onComplete: () => { beam.destroy(); glow.destroy(); },
+    });
+    this.tweens.add({
+      targets: [muzzle, impact], alpha: 0, duration: 500, delay: 300,
+      onComplete: () => { muzzle.destroy(); impact.destroy(); },
+    });
+  }
+
   _showHitEffect(sx, sy) {
     const flash = this.add.graphics().setDepth(9500);
     flash.fillStyle(0xffffff,0.6); flash.fillCircle(sx,sy-25,20);
@@ -404,6 +692,189 @@ export class GameScene extends Phaser.Scene {
       const spark = this.add.graphics().setDepth(9501);
       spark.fillStyle(0xffd93d); spark.fillCircle(sx,sy-25,3);
       this.tweens.add({ targets:spark, x:Math.cos(a)*25, y:Math.sin(a)*25-25, alpha:0, duration:400, ease:'Cubic.easeOut', onComplete:()=>spark.destroy() });
+    }
+  }
+
+  // ----------------------------------------------------------
+  //  Power-Up Sprites
+  // ----------------------------------------------------------
+  _addPowerUp(pu, id) {
+    const { x, y } = worldToScreen(pu.x, pu.y);
+    const sx = x + this.camOX, sy = y + this.camOY;
+    const PU_ICONS = { speed:'⚡', shield:'🛡️', turbo_repair:'🔧', invisible:'👻', shockwave:'💥' };
+    const PU_COLORS = { speed:0xffd93d, shield:0x3498db, turbo_repair:0x2ecc71, invisible:0xa29bfe, shockwave:0xff6b6b };
+    const color = PU_COLORS[pu.powerType] || 0xffffff;
+
+    // Glow circle
+    const glow = this.add.graphics().setDepth(sy - 1);
+    glow.fillStyle(color, 0.2); glow.fillCircle(sx, sy, 20);
+
+    // Icon
+    const icon = this.add.text(sx, sy - 15, PU_ICONS[pu.powerType] || '⭐', {
+      fontSize: '24px',
+    }).setOrigin(0.5).setDepth(sy + 1);
+
+    // Label
+    const label = this.add.text(sx, sy + 8, (pu.powerType || '').toUpperCase(), {
+      fontSize: '9px', fontFamily: 'Inter, sans-serif', fontStyle: 'bold',
+      color: '#fff', stroke: '#000', strokeThickness: 2,
+    }).setOrigin(0.5).setDepth(sy + 1);
+
+    // Float animation
+    this.tweens.add({ targets: icon, y: icon.y - 6, duration: 800, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+
+    // Pulse glow
+    this.tweens.add({ targets: glow, alpha: 0.3, duration: 600, yoyo: true, repeat: -1 });
+
+    this.powerUpSprites[id] = { glow, icon, label };
+  }
+
+  _removePowerUp(id) {
+    const d = this.powerUpSprites[id]; if (!d) return;
+    // Pickup flash
+    if (d.icon) {
+      const sx = d.icon.x, sy = d.icon.y;
+      const flash = this.add.graphics().setDepth(9500);
+      flash.fillStyle(0xffffff, 0.5); flash.fillCircle(sx, sy, 30);
+      this.tweens.add({ targets: flash, alpha: 0, scaleX: 2, scaleY: 2, duration: 300, onComplete: () => flash.destroy() });
+    }
+    d.glow.destroy(); d.icon.destroy(); d.label.destroy();
+    delete this.powerUpSprites[id];
+  }
+
+  // ----------------------------------------------------------
+  //  Shockwave Effect
+  // ----------------------------------------------------------
+  _showShockwave(data) {
+    const { x, y } = worldToScreen(data.x, data.y);
+    const sx = x + this.camOX, sy = y + this.camOY;
+
+    // Expanding ring
+    for (let i = 0; i < 3; i++) {
+      const ring = this.add.graphics().setDepth(9500);
+      ring.lineStyle(4 - i, 0xff6b6b, 0.7); ring.strokeCircle(sx, sy - 15, 10);
+      this.tweens.add({
+        targets: ring, scaleX: 8 + i * 2, scaleY: 4 + i, alpha: 0,
+        duration: 600, delay: i * 100, ease: 'Cubic.easeOut',
+        onComplete: () => ring.destroy(),
+      });
+    }
+
+    // Screen shake
+    this.cameras.main.shake(300, 0.01);
+
+    // Ground crack effect
+    const crack = this.add.graphics().setDepth(9499);
+    crack.fillStyle(0xff6b6b, 0.3); crack.fillCircle(sx, sy, 60);
+    this.tweens.add({ targets: crack, alpha: 0, duration: 800, onComplete: () => crack.destroy() });
+  }
+
+  // ----------------------------------------------------------
+  //  NUKE Effect (mushroom cloud)
+  // ----------------------------------------------------------
+  _showNuke(data) {
+    // 1. Screen goes WHITE
+    const white = this.add.graphics().setDepth(9999).setScrollFactor(0);
+    white.fillStyle(0xffffff, 1); white.fillRect(0,0,1920,1080);
+    this.tweens.add({ targets: white, alpha: 0, duration: 2000, delay: 500, onComplete: () => white.destroy() });
+
+    // 2. Massive screen shake
+    this.cameras.main.shake(2000, 0.025);
+
+    // 3. Mushroom cloud at center of screen
+    const cx = 960, cy = 400;
+    // Stem
+    const stem = this.add.graphics().setDepth(9998).setScrollFactor(0);
+    stem.fillStyle(0xff6600, 0.8); stem.fillRect(cx-30, cy, 60, 300);
+    stem.fillStyle(0xff9900, 0.5); stem.fillRect(cx-15, cy+50, 30, 250);
+    // Mushroom top
+    const cloud = this.add.graphics().setDepth(9998).setScrollFactor(0);
+    cloud.fillStyle(0xff4400, 0.8); cloud.fillCircle(cx, cy, 120);
+    cloud.fillStyle(0xff6600, 0.6); cloud.fillCircle(cx, cy-20, 90);
+    cloud.fillStyle(0xffaa00, 0.5); cloud.fillCircle(cx, cy-30, 60);
+    cloud.fillStyle(0xffdd00, 0.4); cloud.fillCircle(cx, cy-35, 35);
+    // Ring
+    const ring = this.add.graphics().setDepth(9997).setScrollFactor(0);
+    ring.lineStyle(8, 0xff6600, 0.7); ring.strokeCircle(cx, cy+100, 50);
+
+    // Expand ring
+    this.tweens.add({ targets: ring, scaleX: 6, scaleY: 3, alpha: 0, duration: 1500, ease: 'Cubic.easeOut', onComplete: () => ring.destroy() });
+
+    // Fade everything
+    this.tweens.add({ targets: [stem, cloud], alpha: 0, duration: 1500, delay: 1500, onComplete: () => { stem.destroy(); cloud.destroy(); } });
+
+    // Red tint after
+    const red = this.add.graphics().setDepth(9996).setScrollFactor(0);
+    red.fillStyle(0xff0000, 0.2); red.fillRect(0,0,1920,1080);
+    this.tweens.add({ targets: red, alpha: 0, duration: 3000, delay: 1000, onComplete: () => red.destroy() });
+
+    // Debris particles
+    for (let i = 0; i < 40; i++) {
+      const p = this.add.graphics().setDepth(9998).setScrollFactor(0);
+      const c = [0xff4400, 0xff6600, 0xffaa00, 0x333333][Math.floor(Math.random()*4)];
+      p.fillStyle(c, 0.8); p.fillCircle(cx + (Math.random()-0.5)*100, cy + Math.random()*50, 3+Math.random()*5);
+      this.tweens.add({
+        targets: p, x: (Math.random()-0.5)*800, y: -200-Math.random()*400,
+        alpha: 0, duration: 1500+Math.random()*1000, ease: 'Cubic.easeOut',
+        onComplete: () => p.destroy(),
+      });
+    }
+
+    // Text
+    const txt = this.add.text(960, 200, '☢️ NUKE ☢️', {
+      fontSize: '64px', fontFamily: 'Inter, sans-serif', fontStyle: '900',
+      color: '#ff4400', stroke: '#000', strokeThickness: 6,
+    }).setOrigin(0.5).setDepth(9999).setScrollFactor(0);
+    this.tweens.add({ targets: txt, scaleX: 1.5, scaleY: 1.5, alpha: 0, duration: 2000, delay: 500, onComplete: () => txt.destroy() });
+  }
+
+  // ----------------------------------------------------------
+  //  FREEZE Effect
+  // ----------------------------------------------------------
+  _showFreeze(data) {
+    // Blue flash
+    const blue = this.add.graphics().setDepth(9999).setScrollFactor(0);
+    blue.fillStyle(0x00aaff, 0.4); blue.fillRect(0,0,1920,1080);
+    this.tweens.add({ targets: blue, alpha: 0, duration: 1000, onComplete: () => blue.destroy() });
+
+    // Ice crystals expanding
+    for (let i = 0; i < 20; i++) {
+      const x = Math.random() * 1920, y = Math.random() * 1080;
+      const ice = this.add.text(x, y, '❄️', { fontSize: (20+Math.random()*30)+'px' })
+        .setOrigin(0.5).setDepth(9998).setScrollFactor(0).setAlpha(0);
+      this.tweens.add({ targets: ice, alpha: 0.8, scaleX: 1.5, scaleY: 1.5, duration: 500, delay: i*50, yoyo: true, hold: 2000, onComplete: () => ice.destroy() });
+    }
+
+    // Text
+    const txt = this.add.text(960, 540, '🥶 FREEZE 🥶', {
+      fontSize: '48px', fontFamily: 'Inter, sans-serif', fontStyle: '900',
+      color: '#00ddff', stroke: '#000', strokeThickness: 5,
+    }).setOrigin(0.5).setDepth(9999).setScrollFactor(0);
+    this.tweens.add({ targets: txt, alpha: 0, duration: 1000, delay: 2000, onComplete: () => txt.destroy() });
+
+    this.cameras.main.shake(300, 0.008);
+  }
+
+  // ----------------------------------------------------------
+  //  Emote Input (T key)
+  // ----------------------------------------------------------
+  _setupEmoteInput() {
+    this.emoteKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.T);
+    this.emoteKeys = {
+      1: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ONE),
+      2: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.TWO),
+      3: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.THREE),
+      4: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.FOUR),
+    };
+  }
+
+  _processEmoteInput() {
+    if (!this.room) return;
+    const emotes = { 1: 'hello', 2: 'help', 3: 'follow', 4: 'ok' };
+    for (const [key, type] of Object.entries(emotes)) {
+      if (Phaser.Input.Keyboard.JustDown(this.emoteKeys[key])) {
+        this.room.send('emote', { type });
+      }
     }
   }
 
@@ -483,7 +954,25 @@ export class GameScene extends Phaser.Scene {
       dash:   Phaser.Input.Keyboard.JustDown(this.dashKey),
       sprint: this.sprintKey.isDown,
       repair: this.repairKey.isDown,
+      laser:  Phaser.Input.Keyboard.JustDown(this.laserKey),
+      nuke:   Phaser.Input.Keyboard.JustDown(this.nukeKey),
+      freeze: Phaser.Input.Keyboard.JustDown(this.freezeKey),
+      teleport: Phaser.Input.Keyboard.JustDown(this.teleportKey),
+      laserTargetX: this._laserTargetX || 0,
+      laserTargetY: this._laserTargetY || 0,
     });
+
+    // Track mouse position in world coords for laser aiming
+    if (this.input.activePointer) {
+      const cam = this.cameras.main;
+      const worldX = this.input.activePointer.worldX;
+      const worldY = this.input.activePointer.worldY;
+      // Convert screen coords back to tile coords (inverse of worldToScreen)
+      const isoX = worldX - this.camOX;
+      const isoY = worldY - this.camOY;
+      this._laserTargetX = (isoX / (TILE_W/2) + isoY / (TILE_H/2)) / 2;
+      this._laserTargetY = (isoY / (TILE_H/2) - isoX / (TILE_W/2)) / 2;
+    }
 
     this._pushHUDData();
     this._renderPlayers(delta);
@@ -492,6 +981,9 @@ export class GameScene extends Phaser.Scene {
     this._updateEmergencyEffects();
     this._updateCamera();
     this._updateMinimap();
+    this._processEmoteInput();
+    this._updatePowerUpHUD();
+    this._updateStabilityEffects();
   }
 
   // Camera follow local player
@@ -592,6 +1084,37 @@ export class GameScene extends Phaser.Scene {
         repairBarBg.clear().setVisible(true).fillStyle(0x333333).fillRoundedRect(screenX-30,screenY-82,60,8,3).setDepth(depth+0.4);
         repairBarFill.clear().setVisible(true).fillStyle(0x2ecc71).fillRoundedRect(screenX-30,screenY-82,player.repairProgress*60,8,3).setDepth(depth+0.5);
       } else { repairBarBg.clear().setVisible(false); repairBarFill.clear().setVisible(false); }
+
+      // Emote bubble
+      if (player.emote && player.emoteTimer > 0) {
+        const EMOTE_ICONS = { hello:'👋', help:'🆘', follow:'➡️', ok:'👍' };
+        if (!d._emoteText) {
+          d._emoteText = this.add.text(0, 0, '', { fontSize:'28px', backgroundColor:'#000000cc', padding:{x:8,y:4} }).setOrigin(0.5).setDepth(10000);
+        }
+        d._emoteText.setText(EMOTE_ICONS[player.emote] || '❓');
+        d._emoteText.setPosition(screenX, screenY - 90);
+        d._emoteText.setVisible(true);
+      } else if (d._emoteText) {
+        d._emoteText.setVisible(false);
+      }
+
+      // Power-up particle aura
+      if (player.powerUpType && player.powerUpTimer > 0) {
+        const PU_COLORS_MAP = { speed:0xffd93d, shield:0x3498db, turbo_repair:0x2ecc71, invisible:0xa29bfe };
+        const puColor = PU_COLORS_MAP[player.powerUpType] || 0xffffff;
+        if (Math.random() < 0.3) {
+          const p = this.add.graphics().setDepth(depth - 0.5);
+          const angle = Math.random() * Math.PI * 2;
+          const dist = 12 + Math.random() * 8;
+          p.fillStyle(puColor, 0.7); p.fillCircle(screenX + Math.cos(angle) * dist, screenY - 20 + Math.sin(angle) * dist, 2);
+          this.tweens.add({ targets: p, y: -15, alpha: 0, duration: 500, onComplete: () => p.destroy() });
+        }
+        // Invisibility: make other players' view of this player transparent
+        if (player.powerUpType === 'invisible' && sid !== this.localSessionId) {
+          sprite.setAlpha(0.15);
+          label.setAlpha(0.15);
+        }
+      }
     }
   }
 
@@ -636,6 +1159,34 @@ export class GameScene extends Phaser.Scene {
   }
 
   // ----------------------------------------------------------
+  //  Power-Up HUD + Stability Effects
+  // ----------------------------------------------------------
+  _updatePowerUpHUD() {
+    if (!window.screenManager || !this.room) return;
+    const lp = this.room.state.players.get(this.localSessionId);
+    if (lp) window.screenManager.updatePowerUpHUD(lp.powerUpType, lp.powerUpTimer);
+  }
+
+  _updateStabilityEffects() {
+    if (!this.room) return;
+    const stability = this.room.state.stability;
+    // Low stability: periodic red pulse + shake
+    if (stability < 15) {
+      // Heartbeat effect
+      const beat = Math.sin(this.time.now * 0.008) > 0.7;
+      if (beat && !this._lastBeat) {
+        this.cameras.main.shake(100, 0.003);
+      }
+      this._lastBeat = beat;
+    }
+    // Music volume scales with danger
+    if (window._musicStarted) {
+      const game = document.getElementById('music-game');
+      if (game) game.volume = 0.3 + (1 - stability / 100) * 0.3;
+    }
+  }
+
+  // ----------------------------------------------------------
   //  Emergency Effects
   // ----------------------------------------------------------
   _updateEmergencyEffects() {
@@ -651,20 +1202,50 @@ export class GameScene extends Phaser.Scene {
     this.gasOverlay.alpha += ((hasGas?1:0)-this.gasOverlay.alpha)*0.05;
 
     if (hasCircuit) {
-      this.circuitOverlay.clear();
-      this.circuitOverlay.fillStyle(0x000000,0.75);
-      this.circuitOverlay.fillRect(-2000,-2000,6000,6000);
-      const lp = state.players.get(this.localSessionId);
-      if (lp) {
-        const { x, y } = worldToScreen(lp.x, lp.y);
-        const px = x+this.camOX, py = y+this.camOY;
-        for (let r=200; r>0; r-=12) {
-          this.circuitOverlay.fillStyle(0x0f0f23, 0.75*(r/200));
-          this.circuitOverlay.fillCircle(px,py,r);
-        }
+      // Among Us style: use a separate canvas mask for clean vision hole
+      if (!this._visionCanvas) {
+        this._visionCanvas = document.createElement('canvas');
+        this._visionCanvas.width = 1920;
+        this._visionCanvas.height = 1080;
+        this._visionTex = this.textures.createCanvas('_vision', 1920, 1080);
+        this._visionImg = this.add.image(960, 540, '_vision').setDepth(9001).setScrollFactor(0).setAlpha(0);
       }
-      this.circuitOverlay.alpha += (1-this.circuitOverlay.alpha)*0.05;
-    } else this.circuitOverlay.alpha += -this.circuitOverlay.alpha*0.08;
+
+      const lp = state.players.get(this.localSessionId);
+      const cam = this.cameras.main;
+      const ctx = this._visionTex.getContext();
+
+      // Full black
+      ctx.fillStyle = 'rgba(0,0,0,0.95)';
+      ctx.fillRect(0, 0, 1920, 1080);
+
+      if (lp) {
+        // Player position on screen (accounting for camera)
+        const { x, y } = worldToScreen(lp.x, lp.y);
+        const worldX = x + this.camOX;
+        const worldY = y + this.camOY - 15;
+        const screenX = (worldX - cam.scrollX) * cam.zoom + 960 * (1 - cam.zoom);
+        const screenY = (worldY - cam.scrollY) * cam.zoom + 540 * (1 - cam.zoom);
+
+        // Clear a radial gradient circle (vision zone)
+        const radius = 160;
+        const gradient = ctx.createRadialGradient(screenX, screenY, 0, screenX, screenY, radius);
+        gradient.addColorStop(0, 'rgba(0,0,0,1)');       // fully clear center
+        gradient.addColorStop(0.5, 'rgba(0,0,0,0.9)');
+        gradient.addColorStop(0.8, 'rgba(0,0,0,0.3)');
+        gradient.addColorStop(1, 'rgba(0,0,0,0)');       // fully dark edge
+
+        ctx.globalCompositeOperation = 'destination-out';
+        ctx.fillStyle = gradient;
+        ctx.fillRect(screenX - radius, screenY - radius, radius * 2, radius * 2);
+        ctx.globalCompositeOperation = 'source-over';
+      }
+
+      this._visionTex.refresh();
+      this._visionImg.alpha += (1 - this._visionImg.alpha) * 0.08;
+    } else {
+      if (this._visionImg) this._visionImg.alpha += -this._visionImg.alpha * 0.08;
+    }
 
     if (hasOverheat) {
       this.overheatBorder.setAlpha(0.5+Math.sin(this.time.now*0.008)*0.5);
